@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PhishGuard AI</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+<div class="container">
+
+    <div class="top-section">
+        <h1>🛡 PhishGuard AI</h1>
+        <p>Real-time Email Protection</p>
+    </div>
+
+    <div class="card">
+        <h2 id="status">Status: Waiting...</h2>
+
+        <div class="confidence-section">
+            <span>Confidence:</span>
+            <span id="confidence">0%</span>
+        </div>
+
+        <div class="meter">
+            <div id="meter-fill"></div>
+        </div>
+
+        <h3 id="risk-level">Risk Level: Safe</h3>
+
+        <div id="reasons"></div>
+
+        <div id="tips"></div>
+    </div>
+
+    <div class="buttons">
+        <button id="scanBtn">Scan Email</button>
+        <button id="historyBtn">View History</button>
+        <button id="dashboardBtn">Dashboard</button>
+    </div>
+
+    <div class="toggle">
+        <label>
+            Dark Mode
+            <input type="checkbox" id="darkToggle">
+        </label>
+    </div>
+
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

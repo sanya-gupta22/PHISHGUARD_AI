@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="popup.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="container">
+
+    <h1> PhishGuard Dashboard</h1>
+
+    <div class="card">
+        <h2>Total Emails Scanned: <span id="total"></span></h2>
+        <h2>Phishing Emails: <span id="phishing"></span></h2>
+        <h2>Safe Emails: <span id="safe"></span></h2>
+    </div>
+
+    <canvas id="pieChart"></canvas>
+
+</div>
+
+<script src="dashboard.js"></script>
+</body>
+</html>
