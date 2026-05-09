@@ -4,61 +4,343 @@
     <title>History - PhishGuard AI</title>
     <link rel="stylesheet" href="popup.css">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 100%;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        body.dark-mode {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        }
+        
+        body.dark-mode .container {
+            background: rgba(26, 26, 46, 0.95);
+            color: #e0e0e0;
+        }
+        
+        .top-section {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.3);
+        }
+        
+        .top-section h1 {
+            font-size: 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            text-align: center;
+            min-width: 150px;
+        }
+        
+        .stat-number {
+            font-size: 28px;
+            font-weight: bold;
+        }
+        
         .filter-buttons {
             display: flex;
             gap: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
             flex-wrap: wrap;
+            justify-content: center;
         }
+        
         .filter-btn {
-            padding: 8px 16px;
+            padding: 10px 20px;
             background: rgba(102, 126, 234, 0.2);
             border: none;
-            border-radius: 20px;
+            border-radius: 25px;
             cursor: pointer;
             transition: all 0.3s;
+            font-weight: 500;
         }
+        
+        .filter-btn:hover {
+            transform: translateY(-2px);
+        }
+        
         .filter-btn.active {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+        }
+        
+        .export-btn, .clear-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .export-btn {
+            background: linear-gradient(135deg, #00e676, #00c853);
+            color: white;
+        }
+        
+        .clear-btn {
+            background: #ff1744;
+            color: white;
+        }
+        
+        .export-btn:hover, .clear-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
         table {
             width: 100%;
             border-collapse: collapse;
+            min-width: 800px;
         }
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
+        
         th {
-            background: rgba(102, 126, 234, 0.2);
+            padding: 15px;
+            text-align: left;
+            background: rgba(102, 126, 234, 0.3);
             font-weight: bold;
+            font-size: 14px;
+            position: sticky;
+            top: 0;
         }
+        
+        td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+            vertical-align: middle;
+        }
+        
+        tr:hover {
+            background: rgba(102, 126, 234, 0.1);
+            transition: all 0.3s;
+        }
+        
+        .email-preview {
+            max-width: 300px;
+            cursor: pointer;
+        }
+        
+        .email-content {
+            font-size: 13px;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+        
+        .email-subject {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #667eea;
+        }
+        
+        .email-sender {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        
+        .email-snippet {
+            font-size: 12px;
+            color: #666;
+        }
+        
         .phishing {
             color: #ff1744;
             font-weight: bold;
         }
+        
         .safe {
             color: #00e676;
             font-weight: bold;
         }
-        .delete-btn {
+        
+        .risk-high {
+            color: #ff1744;
+            font-weight: bold;
+        }
+        
+        .risk-medium {
+            color: #ff9100;
+            font-weight: bold;
+        }
+        
+        .risk-low {
+            color: #00e676;
+        }
+        
+        .deleted-badge {
+            background: #757575;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            display: inline-block;
+        }
+        
+        .view-details-btn, .delete-item-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 0 3px;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        
+        .view-details-btn {
+            background: #667eea;
+            color: white;
+        }
+        
+        .delete-item-btn {
+            background: #ff1744;
+            color: white;
+        }
+        
+        .view-details-btn:hover, .delete-item-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        /* Modal for email details */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 30px;
+            position: relative;
+        }
+        
+        body.dark-mode .modal-content {
+            background: #1a1a2e;
+            color: white;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        .close-modal {
             background: #ff1744;
             color: white;
             border: none;
-            padding: 5px 10px;
-            border-radius: 5px;
+            padding: 5px 15px;
+            border-radius: 8px;
             cursor: pointer;
+            font-size: 16px;
         }
-        .export-btn {
-            background: linear-gradient(135deg, #00e676, #00c853);
-            margin-bottom: 20px;
+        
+        .email-full-content {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
         }
+        
+        body.dark-mode .email-full-content {
+            background: #2a2a3e;
+        }
+        
+        @keyframes slideDown {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
         @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
             th, td {
+                padding: 10px;
                 font-size: 12px;
-                padding: 8px;
+            }
+            
+            .email-preview {
+                max-width: 200px;
             }
         }
     </style>
@@ -68,7 +350,31 @@
 <div class="container">
     <div class="top-section">
         <h1> Email Scan History</h1>
-        <p>Track all your scanned emails</p>
+        <p>Complete history of all scanned emails with detailed analysis</p>
+        
+        <div class="stats-bar">
+            <div class="stat-card">
+                <div> Total Scans</div>
+                <div class="stat-number" id="totalScans">0</div>
+            </div>
+            <div class="stat-card">
+                <div> Phishing</div>
+                <div class="stat-number" id="phishingCount">0</div>
+            </div>
+            <div class="stat-card">
+                <div> Safe</div>
+                <div class="stat-number" id="safeCount">0</div>
+            </div>
+            <div class="stat-card">
+                <div> High Risk</div>
+                <div class="stat-number" id="highRiskCount">0</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="action-buttons">
+        <button class="export-btn" id="exportBtn"> Export to CSV</button>
+        <button class="clear-btn" id="clearHistoryBtn"> Clear All History</button>
     </div>
     
     <div class="filter-buttons">
@@ -76,24 +382,42 @@
         <button class="filter-btn" data-filter="Phishing"> Phishing</button>
         <button class="filter-btn" data-filter="Safe"> Safe</button>
         <button class="filter-btn" data-filter="High"> High Risk</button>
-        <button class="export-btn" id="exportBtn"> Export CSV</button>
-        <button id="clearHistoryBtn" style="background: #ff1744;"> Clear All</button>
+        <button class="filter-btn" data-filter="Medium"> Medium Risk</button>
+        <button class="filter-btn" data-filter="Low"> Low Risk</button>
     </div>
     
-    <div style="overflow-x: auto;">
+    <div class="table-container">
         <table id="historyTable">
             <thead>
                 <tr>
-                    <th>Email Preview</th>
+                    <th>Email Details</th>
                     <th>Prediction</th>
                     <th>Confidence</th>
                     <th>Risk Level</th>
-                    <th>Time</th>
-                    <th>Action</th>
+                    <th>Scan Time</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
-            <tbody></tbody>
+            <tbody id="historyTableBody">
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 40px;">
+                        <div> No history found</div>
+                        <div style="font-size: 12px; margin-top: 10px;">Start scanning emails to see history here</div>
+                    </td>
+                </tr>
+            </tbody>
         </table>
+    </div>
+</div>
+
+<!-- Modal for email details -->
+<div id="emailModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2> Email Details</h2>
+            <button class="close-modal" onclick="closeModal()">✕ Close</button>
+        </div>
+        <div id="modalBody"></div>
     </div>
 </div>
 

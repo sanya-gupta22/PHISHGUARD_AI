@@ -190,7 +190,7 @@ function highlightSuspiciousEmail(emailElement, data) {
                 z-index: 9999;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             ">
-                ⚠️ ${confidencePercent}% Phishing Risk
+                 ${confidencePercent}% Phishing Risk
             </div>
         `;
         container.style.position = 'relative';
@@ -258,7 +258,7 @@ function showWarningBanner(data, emailElement = null) {
     
     warning.innerHTML = `
         <div style="max-width: 1200px; margin: 0 auto; position: relative;">
-            <strong style="font-size: 16px;">🚨 PHISHING ALERT DETECTED! 🚨</strong><br>
+            <strong style="font-size: 16px;"> PHISHING ALERT DETECTED! </strong><br>
             <span style="font-size: 14px;">This email appears to be a phishing attempt.</span><br>
             <span style="font-size: 13px; opacity: 0.9;">Confidence: ${confidence}% | Risk Level: ${risk}</span>
             

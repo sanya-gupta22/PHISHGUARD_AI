@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PhishGuard AI",
   "version": "2.0",
-  "description": "AI-powered phishing email detection with real-time protection and analytics",
+  "description": "AI-powered phishing email detection with real-time protection",
   "permissions": [
     "storage",
     "activeTab",
@@ -35,7 +35,8 @@
       "matches": [
         "https://mail.google.com/*",
         "https://outlook.live.com/*",
-        "https://mail.yahoo.com/*"
+        "https://mail.yahoo.com/*",
+        "https://*.office.com/*"
       ],
       "js": ["content.js"],
       "css": ["popup.css"],
@@ -44,7 +45,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["icons/*", "popup.css", "popup.html"],
+      "resources": ["icons/*", "popup.css"],
       "matches": ["<all_urls>"]
     }
   ],
