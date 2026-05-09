@@ -1,25 +1,100 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>History</title>
+    <title>History - PhishGuard AI</title>
     <link rel="stylesheet" href="popup.css">
+    <style>
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .filter-btn {
+            padding: 8px 16px;
+            background: rgba(102, 126, 234, 0.2);
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .filter-btn.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        th {
+            background: rgba(102, 126, 234, 0.2);
+            font-weight: bold;
+        }
+        .phishing {
+            color: #ff1744;
+            font-weight: bold;
+        }
+        .safe {
+            color: #00e676;
+            font-weight: bold;
+        }
+        .delete-btn {
+            background: #ff1744;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .export-btn {
+            background: linear-gradient(135deg, #00e676, #00c853);
+            margin-bottom: 20px;
+        }
+        @media (max-width: 768px) {
+            th, td {
+                font-size: 12px;
+                padding: 8px;
+            }
+        }
+    </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Email History</h1>
-
-    <table id="historyTable" border="1" width="100%">
-        <thead>
-            <tr>
-                <th>Email</th>
-                <th>Prediction</th>
-                <th>Confidence</th>
-                <th>Time</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
+    <div class="top-section">
+        <h1> Email Scan History</h1>
+        <p>Track all your scanned emails</p>
+    </div>
+    
+    <div class="filter-buttons">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="Phishing"> Phishing</button>
+        <button class="filter-btn" data-filter="Safe"> Safe</button>
+        <button class="filter-btn" data-filter="High"> High Risk</button>
+        <button class="export-btn" id="exportBtn"> Export CSV</button>
+        <button id="clearHistoryBtn" style="background: #ff1744;"> Clear All</button>
+    </div>
+    
+    <div style="overflow-x: auto;">
+        <table id="historyTable">
+            <thead>
+                <tr>
+                    <th>Email Preview</th>
+                    <th>Prediction</th>
+                    <th>Confidence</th>
+                    <th>Risk Level</th>
+                    <th>Time</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
 </div>
 
 <script src="history.js"></script>

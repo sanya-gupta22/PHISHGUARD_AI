@@ -9,38 +9,58 @@
 <div class="container">
 
     <div class="top-section">
-        <h1>🛡 PhishGuard AI</h1>
+        <h1> PhishGuard AI</h1>
         <p>Real-time Email Protection</p>
     </div>
 
-    <div class="card">
-        <h2 id="status">Status: Waiting...</h2>
+    <div class="main-content">
+        
+        <!-- Left Panel: Main Results -->
+        <div class="left-panel">
+            <div class="card">
+                <h2 id="status">Status: Waiting...</h2>
 
-        <div class="confidence-section">
-            <span>Confidence:</span>
-            <span id="confidence">0%</span>
+                <div class="confidence-section">
+                    <span> Confidence Score:</span>
+                    <span id="confidence">0%</span>
+                </div>
+
+                <div class="meter">
+                    <div id="meter-fill"></div>
+                </div>
+
+                <div id="risk-level" style="text-align: center;"> Risk Level: Safe</div>
+            </div>
         </div>
 
-        <div class="meter">
-            <div id="meter-fill"></div>
+        <!-- Right Panel: Reasons & Tips -->
+        <div class="right-panel">
+            <div class="card" style="flex: 1;">
+                <div id="reasons">
+                    <h4> Analysis Results</h4>
+                    <p style="color: #999;">Click "Scan Email" to analyze</p>
+                </div>
+            </div>
+            
+            <div class="card" style="flex: 1;">
+                <div id="tips">
+                    <h4> Safety Tips</h4>
+                    <p style="color: #999;">Results will appear here</p>
+                </div>
+            </div>
         </div>
-
-        <h3 id="risk-level">Risk Level: Safe</h3>
-
-        <div id="reasons"></div>
-
-        <div id="tips"></div>
+        
     </div>
 
     <div class="buttons">
-        <button id="scanBtn">Scan Email</button>
-        <button id="historyBtn">View History</button>
+        <button id="scanBtn">Scan Current Email</button>
+        <button id="historyBtn">History</button>
         <button id="dashboardBtn">Dashboard</button>
     </div>
 
     <div class="toggle">
         <label>
-            Dark Mode
+             Dark Mode
             <input type="checkbox" id="darkToggle">
         </label>
     </div>

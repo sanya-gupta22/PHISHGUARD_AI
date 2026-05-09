@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Settings - PhishGuard AI</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+<div class="container">
+    <div class="top-section">
+        <h1> Settings</h1>
+        <p>Customize your protection</p>
+    </div>
+    
+    <div class="card">
+        <h3> Detection Settings</h3>
+        <label>
+            <input type="checkbox" id="autoScanToggle">
+            Auto-scan emails in Gmail
+        </label>
+        <br><br>
+        <label>
+            Detection Sensitivity:
+            <select id="sensitivity">
+                <option value="low">Low (Fewer alerts)</option>
+                <option value="medium">Medium (Balanced)</option>
+                <option value="high">High (More alerts)</option>
+            </select>
+        </label>
+    </div>
+    
+    <div class="card">
+        <h3> Appearance</h3>
+        <label>
+            <input type="checkbox" id="themeToggle">
+            Dark Mode
+        </label>
+        <br><br>
+        <label>
+            <input type="checkbox" id="showNotifications">
+            Show Desktop Notifications
+        </label>
+    </div>
+    
+    <div class="buttons">
+        <button id="saveSettings">Save Settings</button>
+        <button id="resetSettings">Reset to Default</button>
+    </div>
+</div>
+
+<script src="settings.js"></script>
+</body>
+</html>

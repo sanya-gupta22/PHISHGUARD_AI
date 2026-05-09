@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PhishGuard AI",
-  "version": "1.0",
-  "description": "AI-powered phishing email detection extension",
+  "version": "2.0",
+  "description": "AI-powered phishing email detection with real-time protection and analytics",
   "permissions": [
     "storage",
     "activeTab",
@@ -12,26 +12,45 @@
     "contextMenus"
   ],
   "host_permissions": [
-    "https://mail.google.com/*",
+    "https://phishing-detection-apia.onrender.com/*",
     "http://127.0.0.1:5000/*",
-    "https://*.render.com/*"
+    "https://*.render.com/*",
+    "https://mail.google.com/*",
+    "https://outlook.live.com/*",
+    "https://mail.yahoo.com/*"
   ],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.jpg",
+      "48": "icons/icon48.jpg",
+      "128": "icons/icon128.jpg"
+    }
   },
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["https://mail.google.com/*"],
+      "matches": [
+        "https://mail.google.com/*",
+        "https://outlook.live.com/*",
+        "https://mail.yahoo.com/*"
+      ],
       "js": ["content.js"],
-      "css": ["popup.css"]
+      "css": ["popup.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*", "popup.css", "popup.html"],
+      "matches": ["<all_urls>"]
     }
   ],
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "icons/icon16.jpg",
+    "48": "icons/icon48.jpg",
+    "128": "icons/icon128.jpg"
   }
 }
