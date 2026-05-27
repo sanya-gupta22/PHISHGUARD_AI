@@ -14,24 +14,14 @@ from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 // ===================================
 
 const firebaseConfig = {
-
-    apiKey: "YOUR_API_KEY",
-
-    authDomain:
-        "YOUR_PROJECT.firebaseapp.com",
-
-    projectId:
-        "YOUR_PROJECT_ID",
-
-    storageBucket:
-        "YOUR_PROJECT.appspot.com",
-
-    messagingSenderId:
-        "YOUR_SENDER_ID",
-
-    appId:
-        "YOUR_APP_ID"
+  apiKey: "AIzaSyAFcj5O7hCawVIWwSvF9uVOx9_uTKAzNfM",
+  authDomain: "phishguard-ai-1b430.firebaseapp.com",
+  projectId: "phishguard-ai-1b430",
+  storageBucket: "phishguard-ai-1b430.firebasestorage.app",
+  messagingSenderId: "197789399403",
+  appId: "1:197789399403:web:cf53930d084218c58db42e"
 };
+
 
 // ===================================
 // INITIALIZE FIREBASE
@@ -104,3 +94,28 @@ export async function getHistoryFromFirebase(){
 }
 
 export { db };
+
+
+
+
+
+
+
+
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAFcj5O7hCawVIWwSvF9uVOx9_uTKAzNfM",
+  authDomain: "phishguard-ai-1b430.firebaseapp.com",
+  projectId: "phishguard-ai-1b430",
+  storageBucket: "phishguard-ai-1b430.firebasestorage.app",
+  messagingSenderId: "197789399403",
+  appId: "1:197789399403:web:cf53930d084218c58db42e"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);

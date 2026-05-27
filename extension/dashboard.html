@@ -3,114 +3,106 @@
 <head>
     <title>Dashboard - PhishGuard AI</title>
     <link rel="stylesheet" href="popup.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        .dashboard-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .stat-card {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 20px;
-            border-radius: 16px;
-            text-align: center;
-            transition: transform 0.3s;
-        }
-        .stat-card:hover {
-            transform: translateY(-5px);
-        }
-        .stat-number {
-            font-size: 32px;
-            font-weight: bold;
-            margin-top: 10px;
-        }
-        .chart-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .full-width {
-            grid-column: 1 / -1;
-        }
-        .keyword-list {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        .keyword-item {
-            padding: 8px;
-            margin: 5px 0;
-            background: rgba(102, 126, 234, 0.1);
-            border-radius: 8px;
-            display: flex;
-            justify-content: space-between;
-        }
-        @media (max-width: 768px) {
-            .chart-container {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
-<div class="container">
-    <div class="top-section">
-        <h1> PhishGuard Dashboard</h1>
-        <p>Comprehensive Email Security Analytics</p>
-    </div>
+<!-- Menu Toggle Button -->
+<button class="menu-toggle" id="menuToggle">&#9776;</button>
 
-    <!-- Stats Cards -->
-    <div class="dashboard-stats">
-        <div class="stat-card">
-            <div> Total Scanned</div>
-            <div class="stat-number" id="totalScanned">0</div>
-        </div>
-        <div class="stat-card">
-            <div> Safe Emails</div>
-            <div class="stat-number" id="safeEmails">0</div>
-        </div>
-        <div class="stat-card">
-            <div> Phishing Emails</div>
-            <div class="stat-number" id="phishingEmails">0</div>
-        </div>
-        <div class="stat-card">
-            <div> Accuracy Rate</div>
-            <div class="stat-number" id="accuracyRate">0%</div>
-        </div>
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h2>PhishGuard AI</h2>
+        <p>Email Security Protection</p>
+    </div> 
+    
+    <div class="sidebar-menu">
+        <a href="history.html" class="menu-item">
+            <span class="menu-icon"></span>
+            <span>History</span>
+        </a>
+        <a href="dashboard.html" class="menu-item active">
+            <span class="menu-icon"></span>
+            <span>Dashboard</span>
+        </a>
+        <a href="settings.html" class="menu-item">
+            <span class="menu-icon"></span>
+            <span>Settings</span>
+        </a>
     </div>
-
-    <!-- Charts -->
-    <div class="chart-container">
-        <div class="card">
-            <h3>Detection Results</h3>
-            <canvas id="pieChart"></canvas>
-        </div>
-        <div class="card">
-            <h3>Risk Levels Distribution</h3>
-            <canvas id="riskChart"></canvas>
-        </div>
-        <div class="card full-width">
-            <h3>Detection Trends (Last 7 Days)</h3>
-            <canvas id="trendChart"></canvas>
+    
+    <div class="sidebar-footer">
+        <div class="footer-text">
+            PhishGuard AI v2.0
         </div>
     </div>
+</div>
 
-    <!-- Additional Analytics -->
-    <div class="chart-container">
-        <div class="card">
-            <h3> Most Common Phishing Keywords</h3>
-            <div id="keywordList" class="keyword-list">
-                <p style="color: #999;">Loading keywords...</p>
+<!-- Main Content - FULL WIDTH with dynamic shifting -->
+<div class="main-content">
+    <div class="container">
+        <div class="top-section">
+            <h1>PhishGuard Dashboard</h1>
+            <p>Comprehensive Email Security Analytics</p>
+        </div>
+
+        <!-- Stats Cards - Full width grid -->
+        <div class="dashboard-stats">
+            <div class="stat-card">
+                <div>Total Scanned</div>
+                <div class="stat-number" id="totalScanned">0</div>
+            </div>
+            <div class="stat-card">
+                <div>Safe Emails</div>
+                <div class="stat-number" id="safeEmails">0</div>
+            </div>
+            <div class="stat-card">
+                <div>Phishing Emails</div>
+                <div class="stat-number" id="phishingEmails">0</div>
+            </div>
+            <div class="stat-card">
+                <div>Detection Rate</div>
+                <div class="stat-number" id="detectionRate">0%</div>
             </div>
         </div>
-        <div class="card">
-            <h3> Top Sender Domains</h3>
-            <div id="domainList" class="keyword-list">
-                <p style="color: #999;">Loading domains...</p>
+
+        <!-- Charts - Full width layout -->
+        <div class="chart-container">
+            <div class="card">
+                <h3>Detection Results</h3>
+                <div class="chart-wrapper">
+                    <canvas id="pieChart"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Risk Levels Distribution</h3>
+                <div class="chart-wrapper">
+                    <canvas id="riskChart"></canvas>
+                </div>
+            </div>
+            <div class="card full-width">
+                <h3>Detection Trends (Last 7 Days)</h3>
+                <div class="chart-wrapper" style="height: 350px;">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Analytics - Full width -->
+        <div class="chart-container">
+            <div class="card">
+                <h3>Most Common Phishing Keywords</h3>
+                <div id="keywordList" class="keyword-list">
+                    <div class="loading"> Loading keywords...</div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Top Sender Domains</h3>
+                <div id="domainList" class="domain-list">
+                    <div class="loading"> Loading domains...</div>
+                </div>
             </div>
         </div>
     </div>
