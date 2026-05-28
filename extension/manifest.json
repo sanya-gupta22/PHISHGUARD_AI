@@ -17,7 +17,9 @@
     "https://*.render.com/*",
     "https://mail.google.com/*",
     "https://outlook.live.com/*",
-    "https://mail.yahoo.com/*"
+    "https://mail.yahoo.com/*",
+    "https://*.googleapis.com/*",
+    "https://*.firebaseio.com/*"
   ],
   "action": {
     "default_popup": "popup.html",
