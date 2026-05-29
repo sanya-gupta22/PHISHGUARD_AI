@@ -4,6 +4,7 @@ const API_URL = "https://phishing-detection-apia.onrender.com/predict";
 let currentTabId = null;
 let lastProcessedEmailId = null;
 let warningShownForCurrentEmail = false;
+let scannedEmailsHistory = new Set(); // Track scanned emails to avoid duplicate scans
 
 // Initialize when popup opens
 document.addEventListener('DOMContentLoaded', async () => {
@@ -17,6 +18,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
         console.error('Error getting tab:', error);
     }
+    
+    // Load scanned emails history from storage
+    await loadScannedHistory();
     
     // Add scan button event listener
     const scanBtn = document.getElementById('scanBtn');
@@ -37,7 +41,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === "emailScanned") {
             console.log('Received auto-scan result:', request.result);
+            // Check if this email hasn't been scanned before
+            if (request.result.emailId && !scannedEmailsHistory.has(request.result.emailId)) {
+                scannedEmailsHistory.add(request.result.emailId);
+                saveScannedHistory();
+                updateUIFromAutoScan(request.result);
+                // Send highlight request to content script
+                highlightSuspiciousContent(request.result);
+            } else if (request.result.emailId && scannedEmailsHistory.has(request.result.emailId)) {
+                console.log('Email already scanned before, skipping auto-scan');
+                // Still update UI with existing data
+                updateUIFromAutoScan(request.result);
+            }
+        } else if (request.action === "manualScanResult") {
+            console.log('Received manual scan result:', request.result);
             updateUIFromAutoScan(request.result);
+            highlightSuspiciousContent(request.result);
         }
         return true;
     });
@@ -45,6 +64,48 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Request current email status from content script
     requestCurrentEmailStatus();
 });
+
+// Load scanned emails history from storage
+async function loadScannedHistory() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(["scannedEmails"], (result) => {
+            if (result.scannedEmails && Array.isArray(result.scannedEmails)) {
+                scannedEmailsHistory = new Set(result.scannedEmails);
+            }
+            resolve();
+        });
+    });
+}
+
+// Save scanned emails history to storage
+function saveScannedHistory() {
+    const historyArray = Array.from(scannedEmailsHistory);
+    // Keep only last 500 emails to avoid storage issues
+    if (historyArray.length > 500) {
+        historyArray.splice(0, historyArray.length - 500);
+    }
+    chrome.storage.local.set({ scannedEmails: historyArray });
+}
+
+// Request content script to highlight suspicious parts
+async function highlightSuspiciousContent(result) {
+    if (!currentTabId) return;
+    
+    try {
+        await ensureContentScriptInjected();
+        chrome.tabs.sendMessage(currentTabId, { 
+            action: "highlightPhishing", 
+            data: {
+                suspiciousWords: result.suspiciousWords || [],
+                suspiciousPhrases: result.suspiciousPhrases || [],
+                confidence: result.confidence,
+                isPhishing: result.isPhishing
+            }
+        });
+    } catch (error) {
+        console.log('Could not send highlight request:', error);
+    }
+}
 
 async function requestCurrentEmailStatus() {
     if (!currentTabId) return;
@@ -54,7 +115,14 @@ async function requestCurrentEmailStatus() {
         chrome.tabs.sendMessage(currentTabId, { action: "getScanStatus" }, (response) => {
             if (response && response.status === "scanned") {
                 console.log('Email already scanned, updating UI');
+                if (response.data && response.data.emailId && !scannedEmailsHistory.has(response.data.emailId)) {
+                    scannedEmailsHistory.add(response.data.emailId);
+                    saveScannedHistory();
+                }
                 updateUIWithExistingData(response.data);
+                if (response.data.suspiciousWords || response.data.suspiciousPhrases) {
+                    highlightSuspiciousContent(response.data);
+                }
             } else if (response && response.status === "scanning") {
                 showLoading();
             }
@@ -145,7 +213,19 @@ function updateUIFromAutoScan(result) {
     const confidencePercent = Math.round(confidence * 100);
     const risk = confidencePercent > 70 ? 'High' : confidencePercent > 40 ? 'Medium' : 'Low';
     const reasons = result.reasons || [];
-    const scanType = result.scanType || 'auto';
+    const suspiciousWords = result.suspiciousWords || [];
+    const suspiciousPhrases = result.suspiciousPhrases || [];
+    
+    // Build detailed reasons with suspicious items highlighted
+    let detailedReasons = [...reasons];
+    
+    if (suspiciousWords.length > 0) {
+        detailedReasons.push(` Suspicious words detected: ${suspiciousWords.join(', ')}`);
+    }
+    
+    if (suspiciousPhrases.length > 0) {
+        detailedReasons.push(` Suspicious phrases: ${suspiciousPhrases.join(', ')}`);
+    }
     
     statusElement.innerText = `Status: ${isPhishing ? 'SUSPICIOUS' : 'SAFE'}`;
     statusElement.style.animation = 'none';
@@ -172,9 +252,9 @@ function updateUIFromAutoScan(result) {
     riskLevel.style.borderLeft = `4px solid ${riskColor}`;
     riskLevel.style.background = riskBg;
     
-    if (reasons && reasons.length > 0) {
+    if (detailedReasons && detailedReasons.length > 0) {
         reasonsElement.innerHTML = `<h4>Analysis Results</h4>` +
-            reasons.map(r => `<p> ${r}</p>`).join('');
+            detailedReasons.map(r => `<p>${r}</p>`).join('');
     } else if (isPhishing) {
         reasonsElement.innerHTML = `<h4>Analysis Results</h4>
             <p> Suspicious patterns detected</p>
@@ -191,6 +271,11 @@ function updateUIFromAutoScan(result) {
     
     // Hide loading if shown
     hideLoading();
+    
+    // Save to history
+    if (result.emailContent) {
+        saveHistory(result.emailContent, result, result.url);
+    }
 }
 
 async function scanEmail() {
@@ -394,6 +479,8 @@ function saveHistory(email, data, url) {
             risk: risk,
             url: url || '',
             reasons: data.reasons || [],
+            suspiciousWords: data.suspiciousWords || [],
+            suspiciousPhrases: data.suspiciousPhrases || [],
             time: new Date().toLocaleString()
         });
         

@@ -1,5 +1,15 @@
 // dashboard.js — PhishGuard AI Dashboard
 // Sidebar opens on hover, overlays content without shifting
+// Integrated with Firebase Firestore for cloud storage
+
+// Import Firebase modules
+import { 
+    getHistoryFromFirebase, 
+    saveHistoryToFirebase,
+    getDashboardStatsFromFirebase,
+    deleteHistoryFromFirebase,
+    clearAllHistoryFromFirebase
+} from './firebase.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     initSidebar();
@@ -42,7 +52,7 @@ function initSidebar() {
 }
 
 // ============================================================
-// DATA LOADING
+// DATA LOADING (Chrome Storage + Firebase)
 // ============================================================
 
 // Enhanced demo data with proper URLs and more content for keyword matching
@@ -111,29 +121,190 @@ const demoHistory = [
 
 let currentHistory = [];
 let pieChart, riskChart, trendChart;
+let useFirebase = true; // Flag to enable/disable Firebase
 
-function loadHistoryData() {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.get(["history", "darkMode"], (result) => {
-            if (result.darkMode) document.body.classList.add("dark-mode");
-            currentHistory = (result.history && result.history.length)
-                ? result.history
-                : [...demoHistory];
-            updateDashboard();
-        });
-
-        chrome.storage.onChanged && chrome.storage.onChanged.addListener((changes, area) => {
-            if (area === 'local' && changes.history) {
-                currentHistory = changes.history.newValue || [];
+// Main function to load history data (Chrome Storage + Firebase)
+async function loadHistoryData() {
+    try {
+        showLoadingState();
+        
+        // Try to load from Chrome Storage first (local)
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.get(["history", "darkMode"], async (result) => {
+                if (result.darkMode) document.body.classList.add("dark-mode");
+                
+                let localHistory = (result.history && result.history.length) ? result.history : [];
+                
+                // Try to load from Firebase and merge/sync
+                if (useFirebase) {
+                    try {
+                        const firebaseHistory = await getHistoryFromFirebase();
+                        console.log(`Loaded ${firebaseHistory.length} entries from Firebase`);
+                        
+                        // Merge Firebase data with local data (prefer Firebase as source of truth)
+                        if (firebaseHistory.length > 0) {
+                            currentHistory = firebaseHistory;
+                            // Optionally sync back to local storage
+                            chrome.storage.local.set({ history: firebaseHistory });
+                        } else if (localHistory.length > 0) {
+                            currentHistory = localHistory;
+                            // Sync local data to Firebase
+                            await syncLocalToFirebase(localHistory);
+                        } else {
+                            currentHistory = [...demoHistory];
+                        }
+                    } catch (firebaseError) {
+                        console.warn("Firebase not available, using local storage:", firebaseError);
+                        currentHistory = localHistory.length > 0 ? localHistory : [...demoHistory];
+                    }
+                } else {
+                    currentHistory = localHistory.length > 0 ? localHistory : [...demoHistory];
+                }
+                
                 updateDashboard();
-            }
-        });
-    } else {
-        const stored = localStorage.getItem('phishguard_dashboard_data');
-        currentHistory = stored ? JSON.parse(stored) : [...demoHistory];
-        if (!stored) localStorage.setItem('phishguard_dashboard_data', JSON.stringify(currentHistory));
+            });
+
+            // Listen for storage changes (local)
+            chrome.storage.onChanged && chrome.storage.onChanged.addListener((changes, area) => {
+                if (area === 'local' && changes.history) {
+                    currentHistory = changes.history.newValue || [];
+                    updateDashboard();
+                    // Also sync to Firebase if enabled
+                    if (useFirebase && changes.history.newValue) {
+                        syncLocalToFirebase(changes.history.newValue);
+                    }
+                }
+            });
+        } else {
+            // Fallback to localStorage for non-extension environment
+            const stored = localStorage.getItem('phishguard_dashboard_data');
+            currentHistory = stored ? JSON.parse(stored) : [...demoHistory];
+            if (!stored) localStorage.setItem('phishguard_dashboard_data', JSON.stringify(currentHistory));
+            updateDashboard();
+        }
+    } catch (error) {
+        console.error("Error loading history data:", error);
+        currentHistory = [...demoHistory];
         updateDashboard();
+        showNotification("Error loading data, using demo data", "error");
     }
+}
+
+// Sync local history to Firebase
+async function syncLocalToFirebase(localHistory) {
+    if (!useFirebase) return;
+    
+    try {
+        const firebaseHistory = await getHistoryFromFirebase();
+        
+        // Find new items not in Firebase
+        const firebaseIds = new Set(firebaseHistory.map(item => item.id));
+        const newItems = localHistory.filter(item => !firebaseIds.has(item.id));
+        
+        // Save new items to Firebase
+        for (const item of newItems) {
+            await saveHistoryToFirebase(item);
+        }
+        
+        if (newItems.length > 0) {
+            console.log(`Synced ${newItems.length} new items to Firebase`);
+        }
+    } catch (error) {
+        console.error("Error syncing to Firebase:", error);
+    }
+}
+
+// Save a single scan result to both local and Firebase
+export async function saveScanResult(scanData) {
+    try {
+        // Save to local Chrome storage
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+            chrome.storage.local.get(["history"], (result) => {
+                const history = result.history || [];
+                history.unshift(scanData);
+                chrome.storage.local.set({ history: history });
+            });
+        }
+        
+        // Save to Firebase
+        if (useFirebase) {
+            await saveHistoryToFirebase(scanData);
+            console.log("Scan result saved to Firebase");
+        }
+        
+        // Refresh dashboard
+        await loadHistoryData();
+        showNotification("Scan result saved successfully", "success");
+    } catch (error) {
+        console.error("Error saving scan result:", error);
+    }
+}
+
+// Delete a history entry from both sources
+async function deleteHistoryEntry(docId, localIndex) {
+    try {
+        // Delete from Firebase
+        if (useFirebase && docId) {
+            await deleteHistoryFromFirebase(docId);
+        }
+        
+        // Delete from local storage
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+            chrome.storage.local.get(["history"], (result) => {
+                const history = result.history || [];
+                if (localIndex !== undefined && history[localIndex]) {
+                    history.splice(localIndex, 1);
+                    chrome.storage.local.set({ history: history });
+                }
+            });
+        }
+        
+        // Refresh data
+        await loadHistoryData();
+        showNotification("Entry deleted successfully", "success");
+    } catch (error) {
+        console.error("Error deleting entry:", error);
+        showNotification("Error deleting entry", "error");
+    }
+}
+
+// Clear all history from both sources
+async function clearAllHistoryData() {
+    if (confirm("WARNING: This will delete ALL history from both local storage and cloud. This cannot be undone. Are you sure?")) {
+        try {
+            // Clear from Firebase
+            if (useFirebase) {
+                await clearAllHistoryFromFirebase();
+            }
+            
+            // Clear from local storage
+            if (typeof chrome !== 'undefined' && chrome.storage) {
+                chrome.storage.local.set({ history: [] });
+            } else {
+                localStorage.setItem('phishguard_dashboard_data', JSON.stringify([]));
+            }
+            
+            // Reset current history
+            currentHistory = [];
+            updateDashboard();
+            showNotification("All history cleared successfully", "warning");
+        } catch (error) {
+            console.error("Error clearing history:", error);
+            showNotification("Error clearing history", "error");
+        }
+    }
+}
+
+function showLoadingState() {
+    const totalEl = document.getElementById("totalScanned");
+    const safeEl = document.getElementById("safeEmails");
+    const phishingEl = document.getElementById("phishingEmails");
+    const rateEl = document.getElementById("detectionRate");
+    
+    if (totalEl) totalEl.innerText = "...";
+    if (safeEl) safeEl.innerText = "...";
+    if (phishingEl) phishingEl.innerText = "...";
+    if (rateEl) rateEl.innerText = "...%";
 }
 
 // ============================================================
@@ -155,10 +326,15 @@ function updateStats() {
     const phishing     = currentHistory.filter(i => i.prediction === "Phishing").length;
     const detectionRate = total > 0 ? Math.round((phishing / total) * 100) : 0;
 
-    document.getElementById("totalScanned").innerText  = total;
-    document.getElementById("safeEmails").innerText    = safe;
-    document.getElementById("phishingEmails").innerText = phishing;
-    document.getElementById("detectionRate").innerText  = `${detectionRate}%`;
+    const totalEl = document.getElementById("totalScanned");
+    const safeEl = document.getElementById("safeEmails");
+    const phishingEl = document.getElementById("phishingEmails");
+    const rateEl = document.getElementById("detectionRate");
+    
+    if (totalEl) totalEl.innerText = total;
+    if (safeEl) safeEl.innerText = safe;
+    if (phishingEl) phishingEl.innerText = phishing;
+    if (rateEl) rateEl.innerText = `${detectionRate}%`;
 }
 
 // ============================================================
@@ -458,5 +634,48 @@ function escapeHtml(text) {
     return d.innerHTML;
 }
 
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    const bgColor = type === 'error' ? '#ff1744' : type === 'warning' ? '#ff9100' : '#4caf50';
+    notification.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: ${bgColor};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        z-index: 10001;
+        animation: slideUp 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    `;
+    notification.innerHTML = message;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+}
+
+// Add CSS animation if not present
+if (!document.querySelector('#notification-style')) {
+    const style = document.createElement('style');
+    style.id = 'notification-style';
+    style.textContent = `
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
 // Auto-refresh every 30 seconds
 setInterval(loadHistoryData, 30000);
+
+// Export functions for use in other files
+export { saveScanResult, deleteHistoryEntry, clearAllHistoryData, loadHistoryData };

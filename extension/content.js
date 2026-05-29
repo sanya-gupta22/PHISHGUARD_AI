@@ -8,6 +8,7 @@ let processedEmails = new Map(); // Store processed emails with timestamp and sc
 let scanInProgress = false;
 let warningActive = false;
 let currentWarningEmailId = null;
+let highlightActive = false; // Track if highlighting is currently active
 
 // ============================================
 // PING HANDLER - For popup connection
@@ -61,7 +62,185 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
         return true;
     }
+    
+    // NEW: Handle highlight phishing request from popup
+    if (request.action === "highlightPhishing") {
+        highlightSuspiciousContent(request.data);
+        sendResponse({ success: true });
+        return true;
+    }
+    
+    // NEW: Remove highlights
+    if (request.action === "removeHighlights") {
+        removeHighlights();
+        sendResponse({ success: true });
+        return true;
+    }
 });
+
+// ============================================
+// HIGHLIGHT SUSPICIOUS CONTENT
+// ============================================
+function highlightSuspiciousContent(data) {
+    console.log('PhishGuard: Highlighting suspicious content', data);
+    
+    // Remove existing highlights first
+    removeHighlights();
+    
+    if (!data.isPhishing) {
+        console.log('PhishGuard: No phishing detected, skipping highlights');
+        return;
+    }
+    
+    const emailElement = getEmailBodyElement();
+    if (!emailElement) {
+        console.log('PhishGuard: Could not find email body element');
+        return;
+    }
+    
+    const suspiciousWords = data.suspiciousWords || [];
+    const suspiciousPhrases = data.suspiciousPhrases || [];
+    
+    // Combine all suspicious terms
+    const allSuspiciousTerms = [...suspiciousWords, ...suspiciousPhrases];
+    
+    if (allSuspiciousTerms.length === 0) {
+        console.log('PhishGuard: No suspicious terms to highlight');
+        return;
+    }
+    
+    // Create a tree walker to find text nodes
+    const walker = document.createTreeWalker(
+        emailElement,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode: function(node) {
+                // Skip script and style tags
+                if (node.parentElement && 
+                    (node.parentElement.tagName === 'SCRIPT' || 
+                     node.parentElement.tagName === 'STYLE' ||
+                     node.parentElement.classList && 
+                     (node.parentElement.classList.contains('phishguard-highlight') ||
+                      node.parentElement.classList.contains('phishguard-warning-banner')))) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        }
+    );
+    
+    const textNodes = [];
+    while (walker.nextNode()) {
+        textNodes.push(walker.currentNode);
+    }
+    
+    // Process each text node
+    textNodes.forEach(node => {
+        let text = node.nodeValue;
+        let modified = false;
+        let matches = [];
+        
+        // Find all suspicious terms in the text
+        allSuspiciousTerms.forEach(term => {
+            const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+                matches.push({
+                    start: match.index,
+                    end: match.index + match[0].length,
+                    text: match[0],
+                    term: term
+                });
+            }
+        });
+        
+        // Sort matches by start position (descending to avoid index shifting)
+        matches.sort((a, b) => b.start - a.start);
+        
+        if (matches.length > 0) {
+            let newHtml = text;
+            matches.forEach(match => {
+                const before = newHtml.substring(0, match.start);
+                const matchedText = newHtml.substring(match.start, match.end);
+                const after = newHtml.substring(match.end);
+                newHtml = before + `<span class="phishguard-highlight" data-suspicious-term="${escapeHtml(match.term)}" title="Suspicious: ${escapeHtml(match.term)}">${escapeHtml(matchedText)}</span>` + after;
+            });
+            
+            // Create a span to hold the new content
+            const span = document.createElement('span');
+            span.innerHTML = newHtml;
+            node.parentNode.replaceChild(span, node);
+        }
+    });
+    
+    highlightActive = true;
+    console.log('PhishGuard: Highlighting complete');
+    
+    // Add tooltip styles if not already present
+    addHighlightStyles();
+}
+
+function removeHighlights() {
+    if (!highlightActive) return;
+    
+    const highlightedElements = document.querySelectorAll('.phishguard-highlight');
+    highlightedElements.forEach(element => {
+        const parent = element.parentNode;
+        const text = document.createTextNode(element.textContent);
+        parent.replaceChild(text, element);
+        parent.normalize();
+    });
+    
+    highlightActive = false;
+    console.log('PhishGuard: Highlights removed');
+}
+
+function addHighlightStyles() {
+    if (document.querySelector('#phishguard-highlight-styles')) return;
+    
+    const style = document.createElement('style');
+    style.id = 'phishguard-highlight-styles';
+    style.textContent = `
+        .phishguard-highlight {
+            background: linear-gradient(120deg, #ff6b6b 0%, #ff4444 100%);
+            color: white !important;
+            font-weight: bold !important;
+            padding: 2px 4px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            display: inline-block;
+        }
+        
+        .phishguard-highlight:hover {
+            background: linear-gradient(120deg, #ff4444 0%, #dc3545 100%);
+            transform: scale(1.02);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .phishguard-highlight::before {
+            content: " ";
+            font-size: 12px;
+        }
+        
+        /* Animation for new highlights */
+        @keyframes highlightPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .phishguard-highlight {
+            animation: highlightPulse 0.3s ease;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function escapeRegex(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 // ============================================
 // PERSISTENT STORAGE FOR PROCESSED EMAILS
@@ -92,6 +271,27 @@ function saveProcessedEmailsToStorage() {
 // ============================================
 // EXTRACT EMAIL CONTENT (Non-intrusive)
 // ============================================
+function getEmailBodyElement() {
+    let emailElement = null;
+    
+    // GMAIL
+    if (window.location.hostname.includes('mail.google.com')) {
+        emailElement = document.querySelector('.a3s') || 
+                      document.querySelector('.ii.gt') ||
+                      document.querySelector('[role="main"] .a3s');
+    }
+    // OUTLOOK
+    else if (window.location.hostname.includes('outlook') || window.location.hostname.includes('office.com')) {
+        emailElement = document.querySelector('[role="article"]') || document.querySelector('.message-content');
+    }
+    // YAHOO MAIL
+    else if (window.location.hostname.includes('mail.yahoo')) {
+        emailElement = document.querySelector('.message-body');
+    }
+    
+    return emailElement;
+}
+
 function extractEmailContent() {
     let emailElement = null;
     let sender = "";
@@ -155,71 +355,45 @@ function extractEmailContent() {
 function extractDynamicReasonsAndTips(emailContent, confidence, isPhishing) {
     const reasons = [];
     const tips = [];
+    const suspiciousWords = [];
+    const suspiciousPhrases = [];
     const lowerContent = emailContent.toLowerCase();
     
+    // Expanded list of suspicious words and phrases for highlighting
+    const suspiciousTermsList = [
+        { pattern: ['urgent', 'immediately', 'as soon as possible'], type: 'word', reason: 'Urgent language detected to create false urgency', tip: 'Be cautious of urgent requests - legitimate organizations give you time to respond' },
+        { pattern: ['verify your account', 'confirm your account', 'account verification', 'update your account'], type: 'phrase', reason: 'Account verification request - common phishing tactic', tip: 'Never verify account details through email links. Go directly to the official website' },
+        { pattern: ['password', 'change your password', 'reset password'], type: 'word', reason: 'Password-related request detected', tip: 'Legitimate services never ask for passwords via email' },
+        { pattern: ['click here', 'link below', 'follow this link'], type: 'phrase', reason: 'Suspicious link prompt detected', tip: 'Hover over links to see actual URL before clicking' },
+        { pattern: ['bank', 'payment', 'credit card', 'debit card', 'paypal'], type: 'word', reason: 'Financial information request detected', tip: 'Never share financial information via email' },
+        { pattern: ['suspended', 'closed', 'terminated', 'deactivated', 'locked'], type: 'word', reason: 'Account threat language detected to create fear', tip: 'Contact the service directly using official contact information' },
+        { pattern: ['ssn', 'social security', 'date of birth', 'driver license'], type: 'phrase', reason: 'Request for personal identification information', tip: 'Legitimate organizations don\'t request sensitive IDs via email' },
+        { pattern: ['attachment', 'download', 'invoice.pdf', 'document.zip'], type: 'word', reason: 'Suspicious attachment detected', tip: 'Do not open unexpected attachments - verify with sender first' },
+        { pattern: ['winner', 'won', 'prize', 'lottery', 'congratulations', 'cash reward'], type: 'word', reason: 'Prize or lottery scam detected', tip: 'If you didn\'t enter, you didn\'t win - ignore such emails' },
+        { pattern: ['dear customer', 'dear user', 'valued customer'], type: 'phrase', reason: 'Generic greeting - legitimate services usually address you by name', tip: 'Check if the email addresses you personally by name' },
+        { pattern: ['confirm your identity', 'security check', 'account verification required'], type: 'phrase', reason: 'Identity confirmation request', tip: 'Verify requests through official channels only' },
+        { pattern: ['wire transfer', 'money transfer', 'send money', 'western union'], type: 'phrase', reason: 'Money transfer request detected', tip: 'Never send money to unknown recipients' },
+        { pattern: ['login', 'sign in', 'log in', 'access your account'], type: 'word', reason: 'Login request detected', tip: 'Only log in through official websites, not email links' },
+        { pattern: ['unusual activity', 'suspicious activity', 'unauthorized access'], type: 'phrase', reason: 'False security alert detected', tip: 'Contact the company directly using official contact information' },
+        { pattern: ['expires today', 'expires soon', 'limited time', 'act now'], type: 'phrase', reason: 'False urgency tactics detected', tip: 'Phishing emails often create artificial time pressure' }
+    ];
+    
     if (isPhishing) {
-        // Check for different phishing indicators and add corresponding reasons and tips
-        const indicators = [
-            {
-                pattern: ['urgent', 'immediately', 'as soon as possible', 'action required'],
-                reason: 'Urgent language detected to create false urgency',
-                tip: 'Be cautious of urgent requests - legitimate organizations give you time to respond'
-            },
-            {
-                pattern: ['verify your account', 'confirm your account', 'account verification', 'update your account'],
-                reason: 'Account verification request - common phishing tactic',
-                tip: 'Never verify account details through email links. Go directly to the official website'
-            },
-            {
-                pattern: ['password', 'change your password', 'reset password'],
-                reason: 'Password-related request detected',
-                tip: 'Legitimate services never ask for passwords via email'
-            },
-            {
-                pattern: ['click here', 'link below', 'follow this link'],
-                reason: 'Suspicious link prompt detected',
-                tip: 'Hover over links to see actual URL before clicking'
-            },
-            {
-                pattern: ['bank', 'payment', 'credit card', 'debit card', 'paypal'],
-                reason: 'Financial information request detected',
-                tip: 'Never share financial information via email'
-            },
-            {
-                pattern: ['suspended', 'closed', 'terminated', 'deactivated', 'locked'],
-                reason: 'Account threat language detected to create fear',
-                tip: 'Contact the service directly using official contact information'
-            },
-            {
-                pattern: ['ssn', 'social security', 'date of birth', 'driver license'],
-                reason: 'Request for personal identification information',
-                tip: 'Legitimate organizations don\'t request sensitive IDs via email'
-            },
-            {
-                pattern: ['attachment', 'download', 'invoice.pdf', 'document.zip'],
-                reason: 'Suspicious attachment detected',
-                tip: 'Do not open unexpected attachments - verify with sender first'
-            },
-            {
-                pattern: ['winner', 'won', 'prize', 'lottery', 'congratulations', 'cash reward'],
-                reason: 'Prize or lottery scam detected',
-                tip: 'If you didn\'t enter, you didn\'t win - ignore such emails'
-            },
-            {
-                pattern: ['dear customer', 'dear user', 'valued customer'],
-                reason: 'Generic greeting - legitimate services usually address you by name',
-                tip: 'Check if the email addresses you personally by name'
-            }
-        ];
-        
-        indicators.forEach(indicator => {
-            for (const pattern of indicator.pattern) {
+        // Check for different phishing indicators
+        suspiciousTermsList.forEach(item => {
+            for (const pattern of item.pattern) {
                 if (lowerContent.includes(pattern)) {
-                    if (!reasons.includes(indicator.reason)) {
-                        reasons.push(indicator.reason);
+                    if (!reasons.includes(item.reason)) {
+                        reasons.push(item.reason);
                     }
-                    if (!tips.includes(indicator.tip)) {
-                        tips.push(indicator.tip);
+                    if (!tips.includes(item.tip)) {
+                        tips.push(item.tip);
+                    }
+                    // Add to suspicious words/phrases for highlighting
+                    if (item.type === 'word') {
+                        suspiciousWords.push(pattern);
+                    } else {
+                        suspiciousPhrases.push(pattern);
                     }
                     break;
                 }
@@ -234,6 +408,8 @@ function extractDynamicReasonsAndTips(emailContent, confidence, isPhishing) {
             if (domain && !domain.includes('google') && !domain.includes('microsoft') && !domain.includes('yahoo')) {
                 reasons.push(`Suspicious sender domain: ${domain}`);
                 tips.push(`Verify the sender domain - legitimate emails come from official domains`);
+                // Add domain as suspicious
+                suspiciousPhrases.push(domain);
             }
         }
         
@@ -242,6 +418,10 @@ function extractDynamicReasonsAndTips(emailContent, confidence, isPhishing) {
         if (urlMatches && urlMatches.length > 0) {
             reasons.push(`Contains ${urlMatches.length} external URL(s)`);
             tips.push(`Hover over links to see where they actually lead before clicking`);
+            // Add each URL as suspicious
+            urlMatches.forEach(url => {
+                suspiciousWords.push(url);
+            });
         }
         
         // Add confidence-based reason
@@ -264,13 +444,17 @@ function extractDynamicReasonsAndTips(emailContent, confidence, isPhishing) {
         tips.push('Report suspicious emails to help protect others');
     }
     
-    // Remove duplicates and limit
+    // Remove duplicates
     const uniqueReasons = [...new Set(reasons)];
     const uniqueTips = [...new Set(tips)];
+    const uniqueSuspiciousWords = [...new Set(suspiciousWords)];
+    const uniqueSuspiciousPhrases = [...new Set(suspiciousPhrases)];
     
     return {
         reasons: uniqueReasons.slice(0, 5),
-        tips: uniqueTips.slice(0, 5)
+        tips: uniqueTips.slice(0, 5),
+        suspiciousWords: uniqueSuspiciousWords.slice(0, 10),
+        suspiciousPhrases: uniqueSuspiciousPhrases.slice(0, 5)
     };
 }
 
@@ -379,8 +563,8 @@ async function scanCurrentlyOpenedEmail(scanType = 'auto', forceManual = false) 
         const confidence = data.confidence || data.score || 0;
         const isPhishing = data.label === 'Phishing' || data.prediction === 'Phishing' || confidence > 0.7;
         
-        // Extract dynamic reasons and tips
-        const { reasons, tips } = extractDynamicReasonsAndTips(emailData.text, confidence, isPhishing);
+        // Extract dynamic reasons, tips, and suspicious terms
+        const { reasons, tips, suspiciousWords, suspiciousPhrases } = extractDynamicReasonsAndTips(emailData.text, confidence, isPhishing);
         
         const scanResult = {
             isPhishing: isPhishing,
@@ -389,8 +573,11 @@ async function scanCurrentlyOpenedEmail(scanType = 'auto', forceManual = false) 
             sender: emailData.sender,
             reasons: reasons,
             tips: tips,
+            suspiciousWords: suspiciousWords,
+            suspiciousPhrases: suspiciousPhrases,
             scanType: scanType,
-            emailId: emailUniqueId
+            emailId: emailUniqueId,
+            emailContent: emailData.text.substring(0, 1000)
         };
         
         // Mark email as processed
@@ -401,6 +588,11 @@ async function scanCurrentlyOpenedEmail(scanType = 'auto', forceManual = false) 
         
         // Send result to popup
         chrome.runtime.sendMessage({ action: "emailScanned", result: scanResult }).catch(() => {});
+        
+        // For manual scans, also send a specific manual scan result
+        if (scanType === 'manual') {
+            chrome.runtime.sendMessage({ action: "manualScanResult", result: scanResult }).catch(() => {});
+        }
         
         // Show warning if phishing detected
         if (isPhishing) {
@@ -413,9 +605,19 @@ async function scanCurrentlyOpenedEmail(scanType = 'auto', forceManual = false) 
                 console.log('PhishGuard: Warning already closed for this email, not showing again');
             }
             showTemporaryNotification('Phishing Alert!', `${Math.round(confidence * 100)}% confidence`, '#ff4444');
+            
+            // Automatically highlight suspicious content
+            highlightSuspiciousContent({
+                suspiciousWords: suspiciousWords,
+                suspiciousPhrases: suspiciousPhrases,
+                confidence: confidence,
+                isPhishing: true
+            });
         } else {
             console.log('PhishGuard: Email appears safe');
             showSafeIndicator();
+            // Remove highlights if email is safe
+            removeHighlights();
         }
         
         hideScanningIndicator();
@@ -473,6 +675,8 @@ function showWarningBanner(scanResult, emailUniqueId) {
         const confidencePercent = Math.round(scanResult.confidence * 100);
         const reasons = scanResult.reasons || [];
         const tips = scanResult.tips || [];
+        const suspiciousWords = scanResult.suspiciousWords || [];
+        const suspiciousPhrases = scanResult.suspiciousPhrases || [];
         
         const banner = document.createElement("div");
         banner.className = "phishguard-warning-banner";
@@ -495,7 +699,7 @@ function showWarningBanner(scanResult, emailUniqueId) {
             <div style="max-width: 1200px; margin: 0 auto;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                     <div>
-                        <strong style="font-size: 18px;">⚠️ PHISHING ALERT</strong>
+                        <strong style="font-size: 18px;"> PHISHING ALERT</strong>
                         <div style="font-size: 13px; margin-top: 4px;">Confidence: ${confidencePercent}% | Risk: ${confidencePercent > 70 ? 'High' : 'Medium'}</div>
                     </div>
                     <div style="display: flex; gap: 12px;">
@@ -521,6 +725,17 @@ function showWarningBanner(scanResult, emailUniqueId) {
                         ">Close</button>
                     </div>
                 </div>
+                
+                ${suspiciousWords.length > 0 || suspiciousPhrases.length > 0 ? `
+                <div style="margin-top: 12px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 6px;">
+                    <strong> Suspicious content detected in this email:</strong>
+                    <div style="margin-top: 5px;">
+                        ${suspiciousWords.slice(0, 5).map(w => `<span style="display: inline-block; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; margin: 3px; font-size: 12px;">${escapeHtml(w)}</span>`).join('')}
+                        ${suspiciousPhrases.slice(0, 3).map(p => `<span style="display: inline-block; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; margin: 3px; font-size: 12px;">${escapeHtml(p)}</span>`).join('')}
+                    </div>
+                    <div style="font-size: 12px; margin-top: 5px;">These elements have been highlighted in the email</div>
+                </div>
+                ` : ''}
                 
                 <details style="margin-top: 12px;">
                     <summary style="cursor: pointer; font-weight: 500;">Why is this suspicious?</summary>
@@ -550,6 +765,8 @@ function showWarningBanner(scanResult, emailUniqueId) {
                 // Mark as closed permanently
                 markWarningClosedForEmail(emailUniqueId);
                 console.log('PhishGuard: Warning closed and marked as dismissed for this email');
+                // Optionally remove highlights when closing warning
+                // removeHighlights();
             });
         }
         
@@ -637,7 +854,7 @@ function showScanningIndicator() {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     `;
-    indicator.innerHTML = '🔍 PhishGuard: Scanning...';
+    indicator.innerHTML = ' PhishGuard: Scanning...';
     document.body.appendChild(indicator);
     
     if (indicatorTimeout) clearTimeout(indicatorTimeout);
@@ -667,7 +884,7 @@ function showSafeIndicator() {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         animation: fadeOut 2s ease forwards;
     `;
-    indicator.innerHTML = '✅ PhishGuard: Email appears safe';
+    indicator.innerHTML = ' PhishGuard: Email appears safe';
     document.body.appendChild(indicator);
     setTimeout(() => indicator.remove(), 2000);
 }
@@ -814,6 +1031,7 @@ function initialize() {
     console.log('Emails will be auto-scanned only ONCE per email');
     console.log('Warning banner will appear only ONCE per email (persistent across reloads)');
     console.log('Dynamic reasons extracted from email content');
+    console.log('Suspicious content highlighting: ENABLED');
     console.log('========================================');
     
     // Load previously processed emails from storage
@@ -839,6 +1057,9 @@ function initialize() {
         `;
         document.head.appendChild(style);
     }
+    
+    // Add highlight styles
+    addHighlightStyles();
     
     // Notify background script
     chrome.runtime.sendMessage({ action: "contentScriptReady" }).catch(() => {});
