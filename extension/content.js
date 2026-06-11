@@ -1,7 +1,8 @@
 // content.js - Complete PhishGuard AI Content Script
 // AUTOMATICALLY SCANS EVERY OPENED EMAIL - ONCE PER EMAIL ONLY
 // PERSISTENT STORAGE TO PREVENT BANNER REAPPEARING AFTER PAGE RELOAD
-
+console.log("PHISHGUARD CONTENT SCRIPT STARTED");
+alert("PHISHGUARD LOADED");
 console.log('PhishGuard AI: Content script loaded - Auto-scan mode ACTIVE');
 
 let processedEmails = new Map(); // Store processed emails with timestamp and scan type
@@ -10,10 +11,17 @@ let warningActive = false;
 let currentWarningEmailId = null;
 let highlightActive = false; // Track if highlighting is currently active
 
+let scanCache = {};
+let scanTimer = null;
+
+chrome.storage.local.get(["scanCache"], (result) => {
+    scanCache = result.scanCache || {};
+});
+
 // ============================================
 // PING HANDLER - For popup connection
 // ============================================
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     console.log('Content script received message:', request.action);
     
     if (request.action === "ping") {
@@ -47,7 +55,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "getScanStatus") {
         const emailData = extractEmailContent();
         if (emailData && emailData.text) {
-            const emailUniqueId = getEmailUniqueId(emailData);
+            const emailUniqueId =await getEmailUniqueId(emailData);
             const scanInfo = processedEmails.get(emailUniqueId);
             
             if (scanInfo && scanInfo.result) {
@@ -276,9 +284,11 @@ function getEmailBodyElement() {
     
     // GMAIL
     if (window.location.hostname.includes('mail.google.com')) {
-        emailElement = document.querySelector('.a3s') || 
-                      document.querySelector('.ii.gt') ||
-                      document.querySelector('[role="main"] .a3s');
+        emailElement =
+                        document.querySelector('.a3s.aiL') ||
+                        document.querySelector('.ii.gt') ||
+                        document.querySelector('.a3s') ||
+                        document.querySelector('[role="main"] .a3s');
     }
     // OUTLOOK
     else if (window.location.hostname.includes('outlook') || window.location.hostname.includes('office.com')) {
@@ -300,9 +310,11 @@ function extractEmailContent() {
     
     // GMAIL - Use non-intrusive selectors that don't modify DOM
     if (window.location.hostname.includes('mail.google.com')) {
-        emailElement = document.querySelector('.a3s') || 
-                      document.querySelector('.ii.gt') ||
-                      document.querySelector('[role="main"] .a3s');
+        emailElement =
+                        document.querySelector('.a3s.aiL') ||
+                        document.querySelector('.ii.gt') ||
+                        document.querySelector('.a3s') ||
+                        document.querySelector('[role="main"] .a3s');
         
         const senderElement = document.querySelector('.gD');
         if (senderElement) {
@@ -461,11 +473,28 @@ function extractDynamicReasonsAndTips(emailContent, confidence, isPhishing) {
 // ============================================
 // GET EMAIL UNIQUE ID
 // ============================================
-function getEmailUniqueId(emailData) {
+async function getEmailUniqueId(emailData) {
+
     if (emailData.emailId && emailData.emailId !== '') {
         return emailData.emailId;
     }
-    return btoa(`${emailData.subject}|${emailData.sender}|${emailData.text.substring(0, 200)}`);
+
+    const uniqueText =
+        `${emailData.subject}|${emailData.sender}|${emailData.text.substring(0, 200)}`;
+
+    const encoder = new TextEncoder();
+    const data = encoder.encode(uniqueText);
+
+    const hashBuffer = await crypto.subtle.digest(
+        "SHA-256",
+        data
+    );
+
+    return Array.from(
+        new Uint8Array(hashBuffer)
+    )
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 // ============================================
@@ -525,7 +554,27 @@ async function scanCurrentlyOpenedEmail(scanType = 'auto', forceManual = false) 
         return;
     }
     
-    const emailUniqueId = getEmailUniqueId(emailData);
+    const emailUniqueId =await getEmailUniqueId(emailData);
+
+    if (scanCache[emailUniqueId]) {
+
+        console.log(
+            'PhishGuard: Using cached result'
+        );
+
+        const cachedResult =
+            scanCache[emailUniqueId];
+
+        try {
+            chrome.runtime.sendMessage({
+            action: "emailScanned",
+            result: cachedResult
+        });
+        } catch (e) {
+            console.log(e);
+        }
+        return;
+    }
     
     // For auto scans: check if already processed
     if (scanType === 'auto') {
@@ -538,7 +587,13 @@ async function scanCurrentlyOpenedEmail(scanType = 'auto', forceManual = false) 
     scanInProgress = true;
     
     // Notify popup
-    chrome.runtime.sendMessage({ action: "scanStarted", status: "scanning" }).catch(() => {});
+
+    try {
+        chrome.runtime.sendMessage({ action: "scanStarted", status: "scanning" });
+    } catch (e) {
+        console.log(e);
+    }
+
     showScanningIndicator();
     
     try {
@@ -548,11 +603,25 @@ async function scanCurrentlyOpenedEmail(scanType = 'auto', forceManual = false) 
             sender: emailData.sender || ""
         };
         
-        const response = await fetch("https://phishing-detection-apia.onrender.com/predict", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestData)
-        });
+        const controller = new AbortController();
+
+        const timeoutId = setTimeout(() => {
+            controller.abort();
+        }, 10000);
+
+        const response = await fetch(
+            "https://phishing-detection-apia.onrender.com/predict",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(requestData),
+                signal: controller.signal
+            }
+        );
+
+        clearTimeout(timeoutId);
         
         if (!response.ok) throw new Error(`API returned ${response.status}`);
         
@@ -579,19 +648,38 @@ async function scanCurrentlyOpenedEmail(scanType = 'auto', forceManual = false) 
             emailId: emailUniqueId,
             emailContent: emailData.text.substring(0, 1000)
         };
+
+        chrome.storage.local.set({
+            latestScanResult: scanResult
+        });
         
         // Mark email as processed
         markEmailProcessed(emailUniqueId, scanType, scanResult);
+        scanCache[emailUniqueId] =
+            scanResult;
+
+        chrome.storage.local.set({
+            scanCache
+        });
         
         // Save to history with domain for dashboard
         saveToHistory(emailData.text, data, window.location.href, emailData.subject, emailData.sender, scanType, reasons, tips);
         
         // Send result to popup
-        chrome.runtime.sendMessage({ action: "emailScanned", result: scanResult }).catch(() => {});
+        try {
+            chrome.runtime.sendMessage({ action: "emailScanned", result: scanResult });
+        } catch (e) {
+            console.log(e);
+        }
+
         
         // For manual scans, also send a specific manual scan result
         if (scanType === 'manual') {
-            chrome.runtime.sendMessage({ action: "manualScanResult", result: scanResult }).catch(() => {});
+            try {
+                chrome.runtime.sendMessage({ action: "manualScanResult", result: scanResult })
+            } catch (e) {
+                console.log(e);
+            }
         }
         
         // Show warning if phishing detected
@@ -936,6 +1024,20 @@ function escapeHtml(text) {
 let lastUrl = window.location.href;
 let isScanningSetup = false;
 
+function scheduleScan() {
+
+    clearTimeout(scanTimer);
+
+    scanTimer = setTimeout(() => {
+
+        scanCurrentlyOpenedEmail(
+            'auto',
+            false
+        );
+
+    }, 1000);
+}
+
 function setupAutoScan() {
     if (isScanningSetup) return;
     isScanningSetup = true;
@@ -943,31 +1045,33 @@ function setupAutoScan() {
     console.log('PhishGuard: Setting up auto-scan');
     
     const checkAndScan = () => {
-        const isEmailView = window.location.hash.includes('/msg/') ||
-                           document.querySelector('.a3s') ||
-                           document.querySelector('[role="article"]');
+        const isEmailView =
+                            document.querySelector('.a3s.aiL') ||
+                            document.querySelector('.ii.gt') ||
+                            document.querySelector('.hP') ||
+                            document.querySelector('[role="article"]');
         
         if (isEmailView) {
-            setTimeout(() => scanCurrentlyOpenedEmail('auto', false), 1500);
+            scheduleScan();; 
         }
     };
     
     // Delay initial scan to let page load
-    setTimeout(checkAndScan, 3000);
+    setTimeout(checkAndScan, 1000);
     
     // Monitor URL changes
     const urlObserver = new MutationObserver(() => {
         if (window.location.href !== lastUrl) {
             lastUrl = window.location.href;
             console.log('PhishGuard: URL changed, checking for email');
-            setTimeout(checkAndScan, 2000);
+            scheduleScan();
         }
     });
     urlObserver.observe(document, { subtree: true, childList: true });
     
     // Monitor for email content
     let lastEmailContent = '';
-    const domObserver = new MutationObserver(() => {
+    const domObserver = new MutationObserver(async () => {
         const emailBody = document.querySelector('.a3s, [role="article"]');
         if (emailBody && emailBody.innerText && emailBody.innerText.length > 100) {
             const currentContent = emailBody.innerText.substring(0, 200);
@@ -975,10 +1079,10 @@ function setupAutoScan() {
                 lastEmailContent = currentContent;
                 const emailData = extractEmailContent();
                 if (emailData) {
-                    const emailUniqueId = getEmailUniqueId(emailData);
+                    const emailUniqueId = await getEmailUniqueId(emailData);
                     if (!isEmailProcessed(emailUniqueId)) {
                         console.log('PhishGuard: New email content detected');
-                        setTimeout(() => scanCurrentlyOpenedEmail('auto', false), 1000);
+                        scheduleScan();
                     }
                 }
             }
@@ -1062,7 +1166,11 @@ function initialize() {
     addHighlightStyles();
     
     // Notify background script
-    chrome.runtime.sendMessage({ action: "contentScriptReady" }).catch(() => {});
+    try {
+            chrome.runtime.sendMessage({ action: "contentScriptReady" });
+        } catch (e) {
+            console.log(e);
+        }
 }
 
 // Start everything

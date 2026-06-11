@@ -1,328 +1,243 @@
 const API_URL = "https://phishing-detection-apia.onrender.com/predict";
 
-// Get current tab
+// Global state
 let currentTabId = null;
 let lastProcessedEmailId = null;
 let warningShownForCurrentEmail = false;
-let scannedEmailsHistory = new Set(); // Track scanned emails to avoid duplicate scans
+let scannedEmailsHistory = new Set();
 
-// Initialize when popup opens
+// ===== Initialize =====
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Popup loaded');
-    
-    // Get current active tab
+
+    // Get current tab
     try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         currentTabId = tab.id;
-        console.log('Current tab ID:', currentTabId);
     } catch (error) {
         console.error('Error getting tab:', error);
     }
-    
-    // Load scanned emails history from storage
+
+    // Load scanned history
     await loadScannedHistory();
-    
-    // Add scan button event listener
-    const scanBtn = document.getElementById('scanBtn');
-    if (scanBtn) {
-        scanBtn.addEventListener('click', scanEmail);
-    }
-    
+
+    // Attach button listeners
+    document.getElementById('scanBtn').addEventListener('click', scanEmail);
+    document.getElementById('dashboardBtn').addEventListener('click', openDashboard);
+    document.getElementById('darkToggle').addEventListener('change', toggleDarkMode);
+
     // Load dark mode preference
     chrome.storage.local.get(["darkMode"], (result) => {
-        const darkToggle = document.getElementById("darkToggle");
-        if (darkToggle && result.darkMode) {
-            darkToggle.checked = true;
+        if (result.darkMode) {
+            document.getElementById("darkToggle").checked = true;
             document.body.classList.add("dark-mode");
         }
     });
-    
-    // Listen for auto-scan results from content script
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-        if (request.action === "emailScanned") {
-            console.log('Received auto-scan result:', request.result);
-            // Check if this email hasn't been scanned before
-            if (request.result.emailId && !scannedEmailsHistory.has(request.result.emailId)) {
-                scannedEmailsHistory.add(request.result.emailId);
-                saveScannedHistory();
-                updateUIFromAutoScan(request.result);
-                // Send highlight request to content script
-                highlightSuspiciousContent(request.result);
-            } else if (request.result.emailId && scannedEmailsHistory.has(request.result.emailId)) {
-                console.log('Email already scanned before, skipping auto-scan');
-                // Still update UI with existing data
-                updateUIFromAutoScan(request.result);
+
+    // Load latest scan result (for auto-scanned emails)
+        chrome.storage.local.get(
+            ["latestScanResult"],
+            (result) => {
+
+                if (result.latestScanResult) {
+
+                    console.log(
+                        "Loaded latest scan result from storage"
+                    );
+
+                    updateUIFromScanResult(
+                        result.latestScanResult
+                    );
+                }
+
             }
-        } else if (request.action === "manualScanResult") {
-            console.log('Received manual scan result:', request.result);
-            updateUIFromAutoScan(request.result);
+        );
+
+    // Listen for scan results
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === "emailScanned" || request.action === "manualScanResult") {
+            console.log('Received scan result:', request.result);
+            const emailId = request.result.emailId;
+            if (emailId && !scannedEmailsHistory.has(emailId)) {
+                scannedEmailsHistory.add(emailId);
+                saveScannedHistory();
+            }
+            updateUIFromScanResult(request.result);
             highlightSuspiciousContent(request.result);
+            // Save to history + Firebase
+            saveToHistory(request.result);
         }
         return true;
     });
-    
-    // Request current email status from content script
+
+    // Request current email status
     requestCurrentEmailStatus();
 });
 
-// Load scanned emails history from storage
-async function loadScannedHistory() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get(["scannedEmails"], (result) => {
-            if (result.scannedEmails && Array.isArray(result.scannedEmails)) {
-                scannedEmailsHistory = new Set(result.scannedEmails);
-            }
-            resolve();
+// ===== Firebase Save (Removed Import - Inlined) =====
+async function saveToFirebase(data) {
+    const firebaseUrl = "https://YOUR_PROJECT_ID.firebaseio.com/scanHistory.json"; // Replace with your Firebase URL
+    try {
+        const response = await fetch(firebaseUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ...data,
+                timestamp: new Date().toISOString(),
+                time: new Date().toLocaleString()
+            })
         });
-    });
-}
-
-// Save scanned emails history to storage
-function saveScannedHistory() {
-    const historyArray = Array.from(scannedEmailsHistory);
-    // Keep only last 500 emails to avoid storage issues
-    if (historyArray.length > 500) {
-        historyArray.splice(0, historyArray.length - 500);
+        if (response.ok) {
+            console.log('Saved to Firebase');
+            showNotification('Scan saved to cloud ', 'success');
+        }
+    } catch (error) {
+        console.warn('Firebase save failed (offline or misconfigured):', error);
+        showNotification('Saved locally only', 'warning');
     }
-    chrome.storage.local.set({ scannedEmails: historyArray });
 }
 
-// Request content script to highlight suspicious parts
-async function highlightSuspiciousContent(result) {
-    if (!currentTabId) return;
-    
+// ===== Navigation Functions =====
+
+function openDashboard() {
+    chrome.tabs.create({ url: chrome.runtime.getURL("app.html") });
+}
+
+// ===== Scan Email  ===== 
+async function scanEmail() {
+    console.log('Manual scan initiated');
+
+    if (!currentTabId) {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            currentTabId = tab.id;
+        } catch (error) {
+            showNotification('Could not access current tab', 'error');
+            return;
+        }
+    }
+
+    showLoading();
+
     try {
         await ensureContentScriptInjected();
-        chrome.tabs.sendMessage(currentTabId, { 
-            action: "highlightPhishing", 
-            data: {
-                suspiciousWords: result.suspiciousWords || [],
-                suspiciousPhrases: result.suspiciousPhrases || [],
-                confidence: result.confidence,
-                isPhishing: result.isPhishing
+        chrome.tabs.sendMessage(currentTabId, { action: "forceScan" }, (response) => {
+            if (chrome.runtime.lastError) {
+                hideLoading();
+                showNotification('Error: Page not ready. Refresh and try again.', 'error');
+                return;
+            }
+            if (response && response.status === "scanning") {
+                // Wait for message listener to handle result
             }
         });
     } catch (error) {
-        console.log('Could not send highlight request:', error);
+        hideLoading();
+        showNotification(`Error: ${error.message}`, 'error');
     }
 }
 
-async function requestCurrentEmailStatus() {
-    if (!currentTabId) return;
-    
-    try {
-        await ensureContentScriptInjected();
-        chrome.tabs.sendMessage(currentTabId, { action: "getScanStatus" }, (response) => {
-            if (response && response.status === "scanned") {
-                console.log('Email already scanned, updating UI');
-                if (response.data && response.data.emailId && !scannedEmailsHistory.has(response.data.emailId)) {
-                    scannedEmailsHistory.add(response.data.emailId);
-                    saveScannedHistory();
-                }
-                updateUIWithExistingData(response.data);
-                if (response.data.suspiciousWords || response.data.suspiciousPhrases) {
-                    highlightSuspiciousContent(response.data);
-                }
-            } else if (response && response.status === "scanning") {
-                showLoading();
-            }
-        });
-    } catch (error) {
-        console.log('Could not get scan status:', error);
-    }
-}
+// ===== UI Updates =====
+function updateUIFromScanResult(result) {
+    if (!result) return;
 
-function updateUIWithExistingData(data) {
-    if (!data) return;
-    
-    const statusElement = document.getElementById("status");
-    const confidenceElement = document.getElementById("confidence");
+    const statusEl = document.getElementById("status");
+    const confidenceEl = document.getElementById("confidence");
     const meterFill = document.getElementById("meter-fill");
     const riskLevel = document.getElementById("risk-level");
-    const reasonsElement = document.getElementById("reasons");
-    const tipsElement = document.getElementById("tips");
-    
-    const isPhishing = data.isPhishing;
-    const confidence = data.confidence || 0;
-    const confidencePercent = Math.round(confidence * 100);
-    const risk = confidencePercent > 70 ? 'High' : confidencePercent > 40 ? 'Medium' : 'Low';
-    const reasons = data.reasons || [];
-    const scanType = data.scanType || 'auto';
-    
-    statusElement.innerText = `Status: ${isPhishing ? 'SUSPICIOUS' : 'SAFE'}`;
-    statusElement.style.animation = 'none';
-    statusElement.offsetHeight;
-    statusElement.style.animation = 'pulse 0.5s ease';
-    
-    confidenceElement.innerText = `${confidencePercent}%`;
-    
-    meterFill.style.width = '0%';
-    setTimeout(() => {
-        meterFill.style.width = `${confidencePercent}%`;
-    }, 100);
-    
-    riskLevel.innerText = `Risk Level: ${risk}`;
-    let riskColor = '#00ff88';
-    let riskBg = 'rgba(0, 255, 136, 0.1)';
-    if (risk === 'High' || confidence > 0.7) {
-        riskColor = '#ff4444';
-        riskBg = 'rgba(255, 68, 68, 0.1)';
-    } else if (risk === 'Medium' || confidence > 0.4) {
-        riskColor = '#ffaa00';
-        riskBg = 'rgba(255, 170, 0, 0.1)';
-    }
-    riskLevel.style.borderLeft = `4px solid ${riskColor}`;
-    riskLevel.style.background = riskBg;
-    
-    if (reasons && reasons.length > 0) {
-        reasonsElement.innerHTML = `<h4>Analysis Results</h4>` +
-            reasons.map(r => `<p> ${r}</p>`).join('');
-    } else if (isPhishing) {
-        reasonsElement.innerHTML = `<h4>Analysis Results</h4>
-            <p> Suspicious patterns detected</p>
-            <p> Email contains potential phishing indicators</p>`;
-    } else {
-        reasonsElement.innerHTML = `<h4>Analysis Results</h4>
-            <p> No phishing indicators detected</p>
-            <p> Email appears legitimate</p>`;
-    }
-    
-    const defaultTips = getDefaultTips(risk);
-    tipsElement.innerHTML = `<h4>Safety Tips</h4>` +
-        defaultTips.map(t => `<p> ${t}</p>`).join('');
-}
+    const reasonsEl = document.getElementById("reasons");
+    const tipsEl = document.getElementById("tips");
 
-function updateUIFromAutoScan(result) {
-    console.log('Updating UI from auto-scan:', result);
-    
-    // Check if this is the current email
-    if (result.emailId && lastProcessedEmailId !== result.emailId) {
-        lastProcessedEmailId = result.emailId;
-        warningShownForCurrentEmail = false;
-    }
-    
-    const statusElement = document.getElementById("status");
-    const confidenceElement = document.getElementById("confidence");
-    const meterFill = document.getElementById("meter-fill");
-    const riskLevel = document.getElementById("risk-level");
-    const reasonsElement = document.getElementById("reasons");
-    const tipsElement = document.getElementById("tips");
-    
-    const isPhishing = result.isPhishing;
+    const isPhishing = result.isPhishing || result.label === 'Phishing';
     const confidence = result.confidence || 0;
     const confidencePercent = Math.round(confidence * 100);
     const risk = confidencePercent > 70 ? 'High' : confidencePercent > 40 ? 'Medium' : 'Low';
     const reasons = result.reasons || [];
     const suspiciousWords = result.suspiciousWords || [];
     const suspiciousPhrases = result.suspiciousPhrases || [];
-    
-    // Build detailed reasons with suspicious items highlighted
-    let detailedReasons = [...reasons];
-    
-    if (suspiciousWords.length > 0) {
-        detailedReasons.push(` Suspicious words detected: ${suspiciousWords.join(', ')}`);
-    }
-    
-    if (suspiciousPhrases.length > 0) {
-        detailedReasons.push(` Suspicious phrases: ${suspiciousPhrases.join(', ')}`);
-    }
-    
-    statusElement.innerText = `Status: ${isPhishing ? 'SUSPICIOUS' : 'SAFE'}`;
-    statusElement.style.animation = 'none';
-    statusElement.offsetHeight;
-    statusElement.style.animation = 'pulse 0.5s ease';
-    
-    confidenceElement.innerText = `${confidencePercent}%`;
-    
+
+    // Status
+    statusEl.innerText = `Status: ${isPhishing ? ' SUSPICIOUS' : ' SAFE'}`;
+    statusEl.classList.remove('loading');
+
+    // Confidence
+    confidenceEl.innerText = `${confidencePercent}%`;
+
+    // Meter
     meterFill.style.width = '0%';
-    setTimeout(() => {
-        meterFill.style.width = `${confidencePercent}%`;
-    }, 100);
-    
+    setTimeout(() => { meterFill.style.width = `${confidencePercent}%`; }, 100);
+
+    // Risk level
     riskLevel.innerText = `Risk Level: ${risk}`;
     let riskColor = '#00ff88';
     let riskBg = 'rgba(0, 255, 136, 0.1)';
-    if (risk === 'High' || confidence > 0.7) {
+    if (risk === 'High') {
         riskColor = '#ff4444';
         riskBg = 'rgba(255, 68, 68, 0.1)';
-    } else if (risk === 'Medium' || confidence > 0.4) {
+    } else if (risk === 'Medium') {
         riskColor = '#ffaa00';
         riskBg = 'rgba(255, 170, 0, 0.1)';
     }
     riskLevel.style.borderLeft = `4px solid ${riskColor}`;
     riskLevel.style.background = riskBg;
-    
-    if (detailedReasons && detailedReasons.length > 0) {
-        reasonsElement.innerHTML = `<h4>Analysis Results</h4>` +
-            detailedReasons.map(r => `<p>${r}</p>`).join('');
+
+    // Reasons
+    let allReasons = [...reasons];
+    if (suspiciousWords.length > 0) {
+        allReasons.push(` Suspicious words: ${suspiciousWords.join(', ')}`);
+    }
+    if (suspiciousPhrases.length > 0) {
+        allReasons.push(` Suspicious phrases: ${suspiciousPhrases.join(', ')}`);
+    }
+
+    if (allReasons.length > 0) {
+        reasonsEl.innerHTML = `<h4> Analysis Results</h4>` +
+            allReasons.map(r => `<p>${r}</p>`).join('');
     } else if (isPhishing) {
-        reasonsElement.innerHTML = `<h4>Analysis Results</h4>
+        reasonsEl.innerHTML = `<h4> Analysis Results</h4>
             <p> Suspicious patterns detected</p>
             <p> Email contains potential phishing indicators</p>`;
     } else {
-        reasonsElement.innerHTML = `<h4>Analysis Results</h4>
+        reasonsEl.innerHTML = `<h4> Analysis Results</h4>
             <p> No phishing indicators detected</p>
             <p> Email appears legitimate</p>`;
     }
-    
-    const defaultTips = getDefaultTips(risk);
-    tipsElement.innerHTML = `<h4>Safety Tips</h4>` +
-        defaultTips.map(t => `<p> ${t}</p>`).join('');
-    
-    // Hide loading if shown
+
+    // Tips
+    const tips = getDefaultTips(risk);
+    tipsEl.innerHTML = `<h4> Safety Tips</h4>` +
+        tips.map(t => `<p>${t}</p>`).join('');
+
     hideLoading();
-    
-    // Save to history
-    if (result.emailContent) {
-        saveHistory(result.emailContent, result, result.url);
-    }
 }
 
-async function scanEmail() {
-    console.log('Scan button clicked - Manual scan');
-    
-    if (!currentTabId) {
-        try {
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            currentTabId = tab.id;
-        } catch (error) {
-            console.error('Error getting current tab:', error);
-            alert('Could not get current tab. Please refresh and try again.');
-            return;
-        }
-    }
-    
-    showLoading();
-    
-    try {
-        await ensureContentScriptInjected();
-        
-        // Send force scan message to content script
-        chrome.tabs.sendMessage(currentTabId, { action: "forceScan" }, async (response) => {
-            console.log('Response from content script:', response);
-            
-            if (chrome.runtime.lastError) {
-                console.error('Runtime error:', chrome.runtime.lastError);
-                hideLoading();
-                alert('Error: Could not connect to the page. Please refresh the page and try again.');
-                return;
-            }
-            
-            if (response && response.status === "scanning") {
-                console.log('Manual scan initiated');
-                // Wait for results via message listener
-            } else if (response && response.error) {
-                hideLoading();
-                alert(response.error);
-            }
-        });
-    } catch (error) {
-        console.error('Error in scanEmail:', error);
-        hideLoading();
-        alert(`Error: ${error.message}`);
-    }
+function showLoading() {
+    document.getElementById("status").innerText = " Scanning Email...";
+    document.getElementById("status").classList.add('loading');
+    document.getElementById("reasons").innerHTML = `<h4> Analysis Results</h4><p> Analyzing email content...</p>`;
+    document.getElementById("tips").innerHTML = `<h4> Safety Tips</h4><p> Please wait...</p>`;
+    document.getElementById("confidence").innerText = "Analyzing...";
 }
 
+function hideLoading() {
+    document.getElementById("status").classList.remove('loading');
+}
+
+function getDefaultTips(riskLevel) {
+    const tips = [
+        ' Always verify the sender\'s email address',
+        ' Hover over links to see actual URL before clicking',
+        ' Never share passwords or personal information via email'
+    ];
+    if (riskLevel === 'High') {
+        tips.unshift(' URGENT: Do not interact with this email!');
+        tips.push(' Report this email as phishing immediately');
+        tips.push(' Do not reply or click any links');
+    }
+    return tips;
+}
+
+// ===== Content Script Management =====
 async function ensureContentScriptInjected() {
     try {
         await new Promise((resolve, reject) => {
@@ -335,190 +250,139 @@ async function ensureContentScriptInjected() {
             });
         });
     } catch (error) {
-        console.log('Content script not injected, injecting now...');
+        console.log('Injecting content script...');
         await chrome.scripting.executeScript({
             target: { tabId: currentTabId },
             files: ['content.js']
-        });
-        await chrome.scripting.insertCSS({
-            target: { tabId: currentTabId },
-            files: ['popup.css']
         });
         await new Promise(resolve => setTimeout(resolve, 500));
     }
 }
 
-function updateUI(data) {
-    console.log('Updating UI with data:', data);
-    
-    const statusElement = document.getElementById("status");
-    const confidenceElement = document.getElementById("confidence");
-    const meterFill = document.getElementById("meter-fill");
-    const riskLevel = document.getElementById("risk-level");
-    const reasonsElement = document.getElementById("reasons");
-    const tipsElement = document.getElementById("tips");
-    
-    let label = data.label || data.prediction || (data.phishing ? 'Phishing' : 'Safe');
-    let confidence = data.confidence || data.score || 0;
-    let risk = data.risk || data.risk_level || (confidence > 0.7 ? 'High' : confidence > 0.4 ? 'Medium' : 'Low');
-    let reasons = data.reasons || data.indicators || [];
-    let tips = data.tips || data.recommendations || getDefaultTips(risk);
-    
-    const isPhishing = label === 'Phishing' || label === 'phishing' || label === true;
-    statusElement.innerText = `Status: ${isPhishing ? 'SUSPICIOUS' : 'SAFE'}`;
-    statusElement.style.animation = 'none';
-    statusElement.offsetHeight;
-    statusElement.style.animation = 'pulse 0.5s ease';
-    
-    const confidencePercent = Math.round(confidence * 100);
-    confidenceElement.innerText = `${confidencePercent}%`;
-    
-    meterFill.style.width = '0%';
+async function highlightSuspiciousContent(result) {
+    if (!currentTabId) return;
+    try {
+        await ensureContentScriptInjected();
+        chrome.tabs.sendMessage(currentTabId, {
+            action: "highlightPhishing",
+            data: {
+                suspiciousWords: result.suspiciousWords || [],
+                suspiciousPhrases: result.suspiciousPhrases || [],
+                confidence: result.confidence,
+                isPhishing: result.isPhishing
+            }
+        });
+    } catch (error) {
+        console.log('Highlight failed:', error);
+    }
+}
+
+async function requestCurrentEmailStatus() {
+    if (!currentTabId) return;
+    try {
+        await ensureContentScriptInjected();
+        chrome.tabs.sendMessage(currentTabId, { action: "getScanStatus" }, (response) => {
+            if (response && response.status === "scanned" && response.data) {
+                updateUIFromScanResult(response.data);
+            }
+        });
+    } catch (error) {
+        console.log('Could not get status:', error);
+    }
+}
+
+// ===== History Management =====
+async function loadScannedHistory() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(["scannedEmails"], (result) => {
+            if (result.scannedEmails) {
+                scannedEmailsHistory = new Set(result.scannedEmails);
+            }
+            resolve();
+        });
+    });
+}
+
+function saveScannedHistory() {
+    const historyArray = Array.from(scannedEmailsHistory);
+    if (historyArray.length > 500) {
+        historyArray.splice(0, historyArray.length - 500);
+    }
+    chrome.storage.local.set({ scannedEmails: historyArray });
+}
+
+function saveToHistory(data) {
+    const entry = {
+        emailId: data.emailId || Date.now().toString(),
+        sender: data.sender || 'Unknown',
+        subject: data.subject || 'No subject',
+        confidence: data.confidence || 0,
+        riskLevel: data.isPhishing ? 'phishing' : 'safe',
+        reasons: data.reasons || [],
+        time: new Date().toISOString(),
+        synced: false
+    };
+
+    chrome.storage.local.get(["scanHistory"], (result) => {
+        let history = result.scanHistory || [];
+        history.unshift(entry);
+        if (history.length > 200) history.length = 200;
+        chrome.storage.local.set({ scanHistory: history }, () => {
+            console.log('Saved to local history');
+        });
+    });
+
+    // Also try Firebase (non-blocking)
+    saveToFirebase(entry);
+}
+
+// ===== Dark Mode =====
+function toggleDarkMode(e) {
+    document.body.classList.toggle("dark-mode", e.target.checked);
+    chrome.storage.local.set({ darkMode: e.target.checked });
+}
+
+// ===== Notification (FIXED - was missing) =====
+function showNotification(message, type = 'info') {
+    // Remove existing notification
+    const existing = document.querySelector('.popup-notification');
+    if (existing) existing.remove();
+
+    const notif = document.createElement('div');
+    notif.className = `popup-notification ${type}`;
+    notif.textContent = message;
+    notif.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: ${type === 'success' ? '#48bb78' : type === 'error' ? '#f56565' : '#4299e1'};
+        color: white;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 9999;
+        animation: fadeInUp 0.3s ease;
+        max-width: 90%;
+        text-align: center;
+    `;
+    document.body.appendChild(notif);
+
     setTimeout(() => {
-        meterFill.style.width = `${confidencePercent}%`;
-    }, 100);
-    
-    riskLevel.innerText = `Risk Level: ${risk}`;
-    let riskColor = '#00ff88';
-    let riskBg = 'rgba(0, 255, 136, 0.1)';
-    if (risk === 'High' || risk === 'high' || confidence > 0.7) {
-        riskColor = '#ff4444';
-        riskBg = 'rgba(255, 68, 68, 0.1)';
-    } else if (risk === 'Medium' || risk === 'medium' || confidence > 0.4) {
-        riskColor = '#ffaa00';
-        riskBg = 'rgba(255, 170, 0, 0.1)';
-    }
-    riskLevel.style.borderLeft = `4px solid ${riskColor}`;
-    riskLevel.style.background = riskBg;
-    
-    if (reasons && reasons.length > 0) {
-        reasonsElement.innerHTML = `<h4>Analysis Results</h4>` +
-            reasons.map(r => `<p> ${r}</p>`).join('');
-    } else if (isPhishing) {
-        reasonsElement.innerHTML = `<h4>Analysis Results</h4>
-            <p> Suspicious patterns detected</p>
-            <p> Email contains potential phishing indicators</p>`;
-    } else {
-        reasonsElement.innerHTML = `<h4>Analysis Results</h4>
-            <p> No phishing indicators detected</p>
-            <p> Email appears legitimate</p>`;
-    }
-    
-    if (tips && tips.length > 0) {
-        tipsElement.innerHTML = `<h4>Safety Tips</h4>` +
-            tips.map(t => `<p> ${t}</p>`).join('');
-    } else {
-        tipsElement.innerHTML = `<h4>Safety Tips</h4>
-            <p> Always verify sender email addresses</p>
-            <p> Don't click suspicious links</p>
-            <p> Never share passwords or sensitive information</p>`;
-    }
+        notif.style.opacity = '0';
+        notif.style.transform = 'translateX(-50%) translateY(20px)';
+        setTimeout(() => notif.remove(), 300);
+    }, 3000);
 }
 
-function getDefaultTips(riskLevel) {
-    const tips = [
-        'Always verify the sender\'s email address',
-        'Hover over links to see actual URL before clicking',
-        'Never share passwords or personal information via email'
-    ];
-    
-    if (riskLevel === 'High' || riskLevel === 'high') {
-        tips.unshift('URGENT: Do not interact with this email!');
-        tips.push('Report this email as phishing immediately');
-        tips.push('Do not reply or click any links');
+// Add animation style
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+        to { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
-    
-    return tips;
-}
-
-function showLoading() {
-    const statusElement = document.getElementById("status");
-    const reasonsElement = document.getElementById("reasons");
-    const tipsElement = document.getElementById("tips");
-    const confidenceElement = document.getElementById("confidence");
-    
-    if (statusElement) {
-        statusElement.innerText = "Scanning Email...";
-        statusElement.classList.add('loading');
-    }
-    
-    if (reasonsElement) {
-        reasonsElement.innerHTML = `<h4>Analysis Results</h4>
-            <p> Analyzing email content...</p>`;
-    }
-    
-    if (tipsElement) {
-        tipsElement.innerHTML = `<h4>Safety Tips</h4>
-            <p> Please wait while we analyze...</p>`;
-    }
-    
-    if (confidenceElement) {
-        confidenceElement.innerText = "Analyzing...";
-    }
-}
-
-function hideLoading() {
-    const statusElement = document.getElementById("status");
-    if (statusElement) {
-        statusElement.classList.remove('loading');
-    }
-}
-
-function saveHistory(email, data, url) {
-    const label = data.label || data.prediction || (data.phishing ? 'Phishing' : 'Safe');
-    const confidence = data.confidence || data.score || 0;
-    const risk = data.risk || data.risk_level || (confidence > 0.7 ? 'High' : confidence > 0.4 ? 'Medium' : 'Low');
-    
-    chrome.storage.local.get(["history"], (result) => {
-        let history = result.history || [];
-        
-        history.unshift({
-            email: email.substring(0, 100),
-            prediction: label,
-            confidence: confidence,
-            risk: risk,
-            url: url || '',
-            reasons: data.reasons || [],
-            suspiciousWords: data.suspiciousWords || [],
-            suspiciousPhrases: data.suspiciousPhrases || [],
-            time: new Date().toLocaleString()
-        });
-        
-        if (history.length > 100) history = history.slice(0, 100);
-        
-        chrome.storage.local.set({ history }, () => {
-            console.log('History saved');
-        });
-    });
-}
-
-// Event listeners for buttons
-const historyBtn = document.getElementById("historyBtn");
-const dashboardBtn = document.getElementById("dashboardBtn");
-const darkToggle = document.getElementById("darkToggle");
-
-if (historyBtn) {
-    historyBtn.addEventListener("click", () => {
-        chrome.tabs.create({ url: "history.html" });
-    });
-}
-
-if (dashboardBtn) {
-    dashboardBtn.addEventListener("click", () => {
-        chrome.tabs.create({ url: "dashboard.html" });
-    });
-}
-
-if (darkToggle) {
-    darkToggle.addEventListener("change", (e) => {
-        document.body.classList.toggle("dark-mode", e.target.checked);
-        chrome.storage.local.set({ darkMode: e.target.checked });
-    });
-    
-    chrome.storage.local.get(["darkMode"], (result) => {
-        if (result.darkMode) {
-            darkToggle.checked = true;
-            document.body.classList.add("dark-mode");
-        }
-    });
-}
+`;
+document.head.appendChild(style);

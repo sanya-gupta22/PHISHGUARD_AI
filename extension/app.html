@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PhishGuard AI</title>
+    <link rel="stylesheet" href="app.css" />
+    <!-- Chart.js CDN -->
+    <script src="node_modules/chart.js/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Menu Toggle -->
+    <button class="menu-toggle" id="menuToggle">&#9776;</button>
+
+    <!-- Sidebar Navigation -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>PhishGuard AI</h2>
+            <p>Email Security Protection</p>
+        </div>
+        <div class="sidebar-menu">
+            <a href="#" class="menu-item active" data-page="dashboard">
+                <span class="menu-icon"></span> Dashboard
+            </a>
+            <a href="#" class="menu-item" data-page="history">
+                <span class="menu-icon"></span> History
+            </a>
+            <a href="#" class="menu-item" data-page="settings">
+                <span class="menu-icon"></span> Settings
+            </a>
+        </div>
+        <div class="sidebar-footer">
+            <div class="footer-text">PhishGuard AI v2.0</div>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+
+        <!-- Dashboard Section -->
+        <section id="page-dashboard" class="page active">
+            <div class="container">
+                <div class="page-header">
+                    <h1> Security Dashboard</h1>
+                    <p>Real-time protection overview</p>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon"></div>
+                        <div class="stat-info">
+                            <h3 id="totalScanned">0</h3>
+                            <p>Total Scanned</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"></div>
+                        <div class="stat-info">
+                            <h3 id="totalPhishing">0</h3>
+                            <p>Phishing Detected</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"></div>
+                        <div class="stat-info">
+                            <h3 id="totalSafe">0</h3>
+                            <p>Safe Emails</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"></div>
+                        <div class="stat-info">
+                            <h3 id="totalSuspicious">0</h3>
+                            <p>Suspicious</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>Email Classification</h3>
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Risk Distribution</h3>
+                        <canvas id="riskChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Detection Trend</h3>
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Lists -->
+                <div class="lists-grid">
+                    <div class="list-card">
+                        <h3>Top Keywords</h3>
+                        <ul id="keywordList"></ul>
+                    </div>
+                    <div class="list-card">
+                        <h3>Suspicious Domains</h3>
+                        <ul id="domainList"></ul>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="quick-actions">
+                    <button id="exportCSVBtn" class="action-btn"> Export CSV</button>
+                    <button id="exportJSONBtn" class="action-btn"> Export JSON</button>
+                    <button id="importJSONBtn" class="action-btn"> Import JSON</button>
+                    <input type="file" id="jsonFileInput" accept=".json" style="display:none" />
+                    <button id="syncBtn" class="action-btn"> Force Sync</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- History Section -->
+        <section id="page-history" class="page">
+            <div class="container">
+                <div class="page-header">
+                    <h1> Scan History</h1>
+                    <p>Complete record of all email scans</p>
+                </div>
+
+                <!-- Filters -->
+                <div class="filter-section">
+                    <div class="filter-buttons">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="phishing">Phishing</button>
+                        <button class="filter-btn" data-filter="safe">Safe</button>
+                        <button class="filter-btn" data-filter="suspicious">Suspicious</button>
+                    </div>
+                    <div class="search-section">
+                        <input type="text" id="searchInput" placeholder=" Search emails, sender, subject..." />
+                        <button id="searchBtn" class="search-btn">Search</button>
+                    </div>
+                </div>
+
+                <!-- Statistics -->
+                <div class="history-stats">
+                    <div class="history-stat">
+                        <span>Total:</span>
+                        <span id="totalCount">0</span>
+                    </div>
+                    <div class="history-stat">
+                        <span>Phishing:</span>
+                        <span id="phishingCount">0</span>
+                    </div>
+                    <div class="history-stat">
+                        <span>Safe:</span>
+                        <span id="safeCount">0</span>
+                    </div>
+                    <div class="history-stat">
+                        <span>Suspicious:</span>
+                        <span id="suspiciousCount">0</span>
+                    </div>
+                </div>
+
+                <!-- History Table -->
+                <div class="table-container">
+                    <table id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>Date/Time</th>
+                                <th>Sender</th>
+                                <th>Subject</th>
+                                <th>Confidence</th>
+                                <th>Risk Level</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody">
+                            <!-- Dynamic rows here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="pagination" id="pagination">
+                    <button id="prevPage" class="page-btn">← Previous</button>
+                    <span id="pageInfo">Page 1 of 1</span>
+                    <button id="nextPage" class="page-btn">Next →</button>
+                </div>
+
+                <!-- Export buttons -->
+                <div class="history-actions">
+                    <button id="clearHistoryBtn" class="action-btn danger-btn">🗑️ Clear All</button>
+                    <button id="exportHistoryCSVBtn" class="action-btn"> Export CSV</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section id="page-settings" class="page">
+            <div class="container">
+                <div class="page-header">
+                    <h1> Settings</h1>
+                    <p>Configure your security preferences</p>
+                </div>
+
+                <div class="settings-group">
+                    <h3>Scanning Preferences</h3>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label>Auto-scan emails</label>
+                            <p class="setting-desc">Automatically scan incoming emails</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="autoScanToggle" checked />
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label>Detection sensitivity</label>
+                            <p class="setting-desc">Adjust how aggressive the detection is</p>
+                        </div>
+                        <select id="sensitivitySelect" class="setting-select">
+                            <option value="low">Low - Only clear threats</option>
+                            <option value="medium" selected>Medium - Balanced</option>
+                            <option value="high">High - Maximum protection</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h3>Appearance</h3>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label>Dark mode</label>
+                            <p class="setting-desc">Switch between light and dark theme</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="darkModeToggle" />
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h3>Data & Sync</h3>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label>Cloud sync (Firebase)</label>
+                            <p class="setting-desc">Sync data across devices</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="cloudSyncToggle" checked />
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="sync-status-card">
+                        <div class="sync-info">
+                            <span class="sync-label">Sync Status:</span>
+                            <span id="syncIndicator" class="sync-indicator idle">Idle</span>
+                        </div>
+                        <div class="sync-details">
+                            <span>Last sync: <span id="lastSyncTime">Never</span></span>
+                            <span>Items in queue: <span id="syncQueue">0</span></span>
+                        </div>
+                    </div>
+
+                    <div class="data-actions">
+                        <button id="clearAllBtn" class="action-btn danger-btn"> Clear All History</button>
+                        <button id="forceSyncBtn" class="action-btn"> Force Sync Now</button>
+                        <button id="exportDataBtn" class="action-btn"> Export All Data</button>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h3>Notifications</h3>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <label>Desktop notifications</label>
+                            <p class="setting-desc">Get alerts when phishing is detected</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="notifToggle" checked />
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-footer">
+                    <p>PhishGuard AI v2.0 | Made with for your security</p>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

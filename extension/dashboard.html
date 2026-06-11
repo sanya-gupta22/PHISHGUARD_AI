@@ -48,6 +48,17 @@
             <p>Comprehensive Email Security Analytics</p>
         </div>
 
+
+<!-- Add this near the top of your dashboard.html, after the container div -->
+<div style="position: fixed; bottom: 20px; right: 20px; z-index: 1002;">
+    <button onclick="testSaveToFirebase()" style="background: #ff1744; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin: 5px;">
+            Test Save to Firebase
+    </button>
+    <button onclick="testLoadFromFirebase()" style="background: #00e676; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin: 5px;">
+         Test Load from Firebase
+    </button>
+</div>
+
         <!-- Stats Cards - Full width grid -->
         <div class="dashboard-stats">
             <div class="stat-card">
@@ -107,6 +118,38 @@
         </div>
     </div>
 </div>
+<script type="module">
+    import { saveHistoryToFirebase, getHistoryFromFirebase, clearAllHistoryFromFirebase } from './firebase.js';
+    
+    window.testSaveToFirebase = async () => {
+        const testData = {
+            prediction: "Test Phishing",
+            confidence: 0.95,
+            risk: "High",
+            email: "This is a test email saved at " + new Date().toLocaleString(),
+            senderDomain: "test-domain.com",
+            url: "https://test-domain.com/verify",
+            reasons: ["Test reason 1", "Test reason 2"],
+            time: new Date().toLocaleString(),
+            timestamp: new Date()
+        };
+        
+        console.log("Saving test data:", testData);
+        const result = await saveHistoryToFirebase(testData);
+        
+        if (result) {
+            alert(` Test data saved successfully! Document ID: ${result}\n\nCheck your Firebase Console to see it.`);
+        } else {
+            alert(" Failed to save to Firebase. Check console for errors.");
+        }
+    };
+    
+    window.testLoadFromFirebase = async () => {
+        const data = await getHistoryFromFirebase();
+        console.log("Loaded data:", data);
+        alert(` Loaded ${data.length} records from Firebase!\n\nCheck console for details.`);
+    };
+</script>
 
 <script src="dashboard.js"></script>
 </body>

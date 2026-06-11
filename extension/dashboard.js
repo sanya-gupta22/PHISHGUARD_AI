@@ -1,20 +1,42 @@
 // dashboard.js — PhishGuard AI Dashboard
 // Sidebar opens on hover, overlays content without shifting
-// Integrated with Firebase Firestore for cloud storage
+// Integrated with Firebase Firestore for cloud storage with automatic sync
 
 // Import Firebase modules
 import { 
     getHistoryFromFirebase, 
     saveHistoryToFirebase,
-    getDashboardStatsFromFirebase,
+    saveBatchHistoryToFirebase,
     deleteHistoryFromFirebase,
-    clearAllHistoryFromFirebase
+    clearAllHistoryFromFirebase,
+    updateHistoryInFirebase
 } from './firebase.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     initSidebar();
     loadHistoryData();
+    setupAutoSync();
 });
+
+// ============================================================
+// AUTO-SYNC SETUP
+// ============================================================
+function setupAutoSync() {
+    // Auto-sync every 30 seconds
+    setInterval(() => {
+        syncLocalToFirebase(currentHistory);
+    }, 30000);
+    
+    // Listen for online/offline events
+    window.addEventListener('online', () => {
+        showNotification("Back online. Syncing with cloud...", "info");
+        syncLocalToFirebase(currentHistory);
+    });
+    
+    window.addEventListener('offline', () => {
+        showNotification("You are offline. Changes will sync when you reconnect.", "warning");
+    });
+}
 
 // ============================================================
 // SIDEBAR HOVER LOGIC - OVERLAY MODE (NO CONTENT SHIFT)
@@ -52,13 +74,13 @@ function initSidebar() {
 }
 
 // ============================================================
-// DATA LOADING (Chrome Storage + Firebase)
+// DATA LOADING (Chrome Storage + Firebase with Auto-Sync)
 // ============================================================
 
 // Enhanced demo data with proper URLs and more content for keyword matching
 const demoHistory = [
     { 
-        id: "1", prediction: "Phishing", confidence: 0.94, risk: "High", 
+        id: "demo1", prediction: "Phishing", confidence: 0.94, risk: "High", 
         time: new Date(Date.now() - 86400000).toLocaleString(), 
         email: "URGENT: Your PayPal account will be suspended immediately! Please verify your account by clicking the link below. Failure to verify will result in account closure.", 
         senderDomain: "paypalsecurity.com", 
@@ -66,14 +88,14 @@ const demoHistory = [
         reasons: ["Urgent action required", "Suspicious links", "Account verification needed"] 
     },
     { 
-        id: "2", prediction: "Safe", confidence: 0.98, risk: "Low", 
+        id: "demo2", prediction: "Safe", confidence: 0.98, risk: "Low", 
         time: new Date(Date.now() - 3600000).toLocaleString(), 
         email: "Meeting notes for Q4 planning - Please find attached the agenda for tomorrow's meeting.", 
         senderDomain: "company.com", 
         url: "https://company.com/meeting" 
     },
     { 
-        id: "3", prediction: "Phishing", confidence: 0.87, risk: "High", 
+        id: "demo3", prediction: "Phishing", confidence: 0.87, risk: "High", 
         time: new Date(Date.now() - 172800000).toLocaleString(), 
         email: "Your Amazon order #ORD-3847 needs verification. Click here to confirm your payment details. Your order is on hold until verification.", 
         senderDomain: "amaz0nverify.net", 
@@ -81,14 +103,14 @@ const demoHistory = [
         reasons: ["Password verification", "Suspicious link", "Payment confirmation needed"] 
     },
     { 
-        id: "4", prediction: "Safe", confidence: 0.95, risk: "Low", 
+        id: "demo4", prediction: "Safe", confidence: 0.95, risk: "Low", 
         time: new Date(Date.now() - 259200000).toLocaleString(), 
         email: "Weekly newsletter: New security features available for your account.", 
         senderDomain: "newsletter.com", 
         url: "https://newsletter.com/weekly" 
     },
     { 
-        id: "5", prediction: "Phishing", confidence: 0.76, risk: "Medium", 
+        id: "demo5", prediction: "Phishing", confidence: 0.76, risk: "Medium", 
         time: new Date(Date.now() - 43200000).toLocaleString(), 
         email: "Security Alert: Unusual login detected from new device. Please verify your bank account information immediately to prevent suspension.", 
         senderDomain: "secure-bank-alerts.com", 
@@ -96,14 +118,14 @@ const demoHistory = [
         reasons: ["Financial references", "Threatening language", "Account verification"] 
     },
     { 
-        id: "6", prediction: "Safe", confidence: 0.99, risk: "Low", 
+        id: "demo6", prediction: "Safe", confidence: 0.99, risk: "Low", 
         time: new Date(Date.now() - 7200000).toLocaleString(), 
         email: "Project update: Q4 milestones achieved successfully. Great work team!", 
         senderDomain: "internal.org", 
         url: "https://internal.org/update" 
     },
     { 
-        id: "7", prediction: "Phishing", confidence: 0.92, risk: "High", 
+        id: "demo7", prediction: "Phishing", confidence: 0.92, risk: "High", 
         time: new Date(Date.now() - 604800000).toLocaleString(), 
         email: "CRITICAL: Your account has been compromised! Reset your password immediately by clicking this link. Failure to act will result in permanent account suspension.", 
         senderDomain: "verify-account.net", 
@@ -111,7 +133,7 @@ const demoHistory = [
         reasons: ["Urgent action required", "Threatening language", "Password reset scam"] 
     },
     { 
-        id: "8", prediction: "Safe", confidence: 0.96, risk: "Low", 
+        id: "demo8", prediction: "Safe", confidence: 0.96, risk: "Low", 
         time: new Date(Date.now() - 120000000).toLocaleString(), 
         email: "Team sync recording - Q1 planning session available for review.", 
         senderDomain: "zoom.us", 
@@ -121,65 +143,69 @@ const demoHistory = [
 
 let currentHistory = [];
 let pieChart, riskChart, trendChart;
-let useFirebase = true; // Flag to enable/disable Firebase
+let useFirebase = true;
+let isSyncing = false;
+let pendingSyncItems = [];
 
 // Main function to load history data (Chrome Storage + Firebase)
 async function loadHistoryData() {
     try {
         showLoadingState();
         
-        // Try to load from Chrome Storage first (local)
+        // Try to load from Firebase first (cloud source of truth)
+        if (useFirebase && navigator.onLine) {
+            try {
+                console.log("Fetching data from Firebase...");
+                const firebaseHistory = await getHistoryFromFirebase();
+                console.log(`Loaded ${firebaseHistory.length} entries from Firebase`);
+                
+                if (firebaseHistory.length > 0) {
+                    currentHistory = firebaseHistory;
+                    // Sync to local storage as backup
+                    await saveToLocalStorage(firebaseHistory);
+                    updateDashboard();
+                    return;
+                }
+            } catch (firebaseError) {
+                console.warn("Firebase fetch failed:", firebaseError);
+                // Continue to local storage fallback
+            }
+        }
+        
+        // Fallback: Load from Chrome Storage (local)
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
             chrome.storage.local.get(["history", "darkMode"], async (result) => {
                 if (result.darkMode) document.body.classList.add("dark-mode");
                 
                 let localHistory = (result.history && result.history.length) ? result.history : [];
                 
-                // Try to load from Firebase and merge/sync
-                if (useFirebase) {
-                    try {
-                        const firebaseHistory = await getHistoryFromFirebase();
-                        console.log(`Loaded ${firebaseHistory.length} entries from Firebase`);
-                        
-                        // Merge Firebase data with local data (prefer Firebase as source of truth)
-                        if (firebaseHistory.length > 0) {
-                            currentHistory = firebaseHistory;
-                            // Optionally sync back to local storage
-                            chrome.storage.local.set({ history: firebaseHistory });
-                        } else if (localHistory.length > 0) {
-                            currentHistory = localHistory;
-                            // Sync local data to Firebase
-                            await syncLocalToFirebase(localHistory);
-                        } else {
-                            currentHistory = [...demoHistory];
-                        }
-                    } catch (firebaseError) {
-                        console.warn("Firebase not available, using local storage:", firebaseError);
-                        currentHistory = localHistory.length > 0 ? localHistory : [...demoHistory];
+                if (localHistory.length > 0) {
+                    currentHistory = localHistory;
+                    // If online, sync local data to Firebase
+                    if (useFirebase && navigator.onLine) {
+                        await syncLocalToFirebase(localHistory);
                     }
                 } else {
-                    currentHistory = localHistory.length > 0 ? localHistory : [...demoHistory];
+                    // Use demo data if nothing exists
+                    currentHistory = [...demoHistory];
+                    // Save demo data to both storages
+                    await saveToLocalStorage(currentHistory);
+                    if (useFirebase && navigator.onLine) {
+                        await syncLocalToFirebase(currentHistory);
+                    }
                 }
                 
                 updateDashboard();
             });
-
-            // Listen for storage changes (local)
-            chrome.storage.onChanged && chrome.storage.onChanged.addListener((changes, area) => {
-                if (area === 'local' && changes.history) {
-                    currentHistory = changes.history.newValue || [];
-                    updateDashboard();
-                    // Also sync to Firebase if enabled
-                    if (useFirebase && changes.history.newValue) {
-                        syncLocalToFirebase(changes.history.newValue);
-                    }
-                }
-            });
         } else {
             // Fallback to localStorage for non-extension environment
             const stored = localStorage.getItem('phishguard_dashboard_data');
-            currentHistory = stored ? JSON.parse(stored) : [...demoHistory];
-            if (!stored) localStorage.setItem('phishguard_dashboard_data', JSON.stringify(currentHistory));
+            if (stored) {
+                currentHistory = JSON.parse(stored);
+            } else {
+                currentHistory = [...demoHistory];
+                localStorage.setItem('phishguard_dashboard_data', JSON.stringify(currentHistory));
+            }
             updateDashboard();
         }
     } catch (error) {
@@ -190,81 +216,134 @@ async function loadHistoryData() {
     }
 }
 
-// Sync local history to Firebase
+// Save to Chrome Storage (local)
+async function saveToLocalStorage(history) {
+    return new Promise((resolve) => {
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.set({ history: history }, resolve);
+        } else {
+            localStorage.setItem('phishguard_dashboard_data', JSON.stringify(history));
+            resolve();
+        }
+    });
+}
+
+// Sync local history to Firebase (automatic)
 async function syncLocalToFirebase(localHistory) {
-    if (!useFirebase) return;
+    if (!useFirebase || !navigator.onLine || isSyncing) return;
+    
+    isSyncing = true;
     
     try {
         const firebaseHistory = await getHistoryFromFirebase();
-        
-        // Find new items not in Firebase
         const firebaseIds = new Set(firebaseHistory.map(item => item.id));
-        const newItems = localHistory.filter(item => !firebaseIds.has(item.id));
         
-        // Save new items to Firebase
-        for (const item of newItems) {
-            await saveHistoryToFirebase(item);
-        }
+        // Find items not in Firebase
+        const newItems = localHistory.filter(item => !firebaseIds.has(item.id) && !item._synced);
         
         if (newItems.length > 0) {
-            console.log(`Synced ${newItems.length} new items to Firebase`);
+            console.log(`Syncing ${newItems.length} new items to Firebase...`);
+            
+            // Prepare items for sync (remove local-only fields)
+            const itemsToSync = newItems.map(item => {
+                const { _synced, ...cleanItem } = item;
+                return {
+                    ...cleanItem,
+                    timestamp: new Date(),
+                    syncedAt: new Date().toISOString()
+                };
+            });
+            
+            // Batch save to Firebase
+            await saveBatchHistoryToFirebase(itemsToSync);
+            
+            // Mark as synced
+            newItems.forEach(item => item._synced = true);
+            await saveToLocalStorage(localHistory);
+            
+            console.log(`Successfully synced ${newItems.length} items to Firebase`);
+            showNotification(`Synced ${newItems.length} items to cloud`, "success");
         }
     } catch (error) {
         console.error("Error syncing to Firebase:", error);
+    } finally {
+        isSyncing = false;
     }
 }
 
-// Save a single scan result to both local and Firebase
-export async function saveScanResult(scanData) {
+// Save a single scan result to both local and Firebase (AUTOMATIC)
+async function saveScanResult(scanData) {
     try {
-        // Save to local Chrome storage
-        if (typeof chrome !== 'undefined' && chrome.storage) {
-            chrome.storage.local.get(["history"], (result) => {
-                const history = result.history || [];
-                history.unshift(scanData);
-                chrome.storage.local.set({ history: history });
-            });
-        }
+        // Add metadata
+        const scanRecord = {
+            ...scanData,
+            id: `scan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            _synced: false,
+            createdAt: new Date().toISOString(),
+            timestamp: new Date()
+        };
         
-        // Save to Firebase
-        if (useFirebase) {
-            await saveHistoryToFirebase(scanData);
-            console.log("Scan result saved to Firebase");
+        // Add to current history
+        currentHistory.unshift(scanRecord);
+        
+        // Save to local storage
+        await saveToLocalStorage(currentHistory);
+        
+        // Save to Firebase if online
+        if (useFirebase && navigator.onLine) {
+            try {
+                await saveHistoryToFirebase(scanRecord);
+                scanRecord._synced = true;
+                await saveToLocalStorage(currentHistory);
+                console.log("Scan result saved to Firebase");
+                showNotification("Scan saved to cloud!", "success");
+            } catch (firebaseError) {
+                console.warn("Firebase save failed, will sync later:", firebaseError);
+                showNotification("Saved locally. Will sync to cloud when online.", "warning");
+            }
+        } else {
+            showNotification("Saved locally (offline mode)", "info");
         }
         
         // Refresh dashboard
-        await loadHistoryData();
-        showNotification("Scan result saved successfully", "success");
+        updateDashboard();
+        
+        return scanRecord.id;
     } catch (error) {
         console.error("Error saving scan result:", error);
+        showNotification("Error saving scan result", "error");
+        return null;
     }
 }
 
 // Delete a history entry from both sources
 async function deleteHistoryEntry(docId, localIndex) {
-    try {
-        // Delete from Firebase
-        if (useFirebase && docId) {
-            await deleteHistoryFromFirebase(docId);
+    if (confirm("Are you sure you want to delete this entry?")) {
+        try {
+            // Delete from Firebase
+            if (useFirebase && docId && navigator.onLine) {
+                await deleteHistoryFromFirebase(docId);
+                console.log("Deleted from Firebase");
+            }
+            
+            // Delete from local array
+            if (localIndex !== undefined && currentHistory[localIndex]) {
+                currentHistory.splice(localIndex, 1);
+            } else {
+                const index = currentHistory.findIndex(item => item.id === docId);
+                if (index !== -1) currentHistory.splice(index, 1);
+            }
+            
+            // Save updated history to local storage
+            await saveToLocalStorage(currentHistory);
+            
+            // Refresh dashboard
+            updateDashboard();
+            showNotification("Entry deleted successfully", "success");
+        } catch (error) {
+            console.error("Error deleting entry:", error);
+            showNotification("Error deleting entry", "error");
         }
-        
-        // Delete from local storage
-        if (typeof chrome !== 'undefined' && chrome.storage) {
-            chrome.storage.local.get(["history"], (result) => {
-                const history = result.history || [];
-                if (localIndex !== undefined && history[localIndex]) {
-                    history.splice(localIndex, 1);
-                    chrome.storage.local.set({ history: history });
-                }
-            });
-        }
-        
-        // Refresh data
-        await loadHistoryData();
-        showNotification("Entry deleted successfully", "success");
-    } catch (error) {
-        console.error("Error deleting entry:", error);
-        showNotification("Error deleting entry", "error");
     }
 }
 
@@ -273,19 +352,16 @@ async function clearAllHistoryData() {
     if (confirm("WARNING: This will delete ALL history from both local storage and cloud. This cannot be undone. Are you sure?")) {
         try {
             // Clear from Firebase
-            if (useFirebase) {
+            if (useFirebase && navigator.onLine) {
                 await clearAllHistoryFromFirebase();
+                console.log("Cleared all data from Firebase");
             }
             
-            // Clear from local storage
-            if (typeof chrome !== 'undefined' && chrome.storage) {
-                chrome.storage.local.set({ history: [] });
-            } else {
-                localStorage.setItem('phishguard_dashboard_data', JSON.stringify([]));
-            }
-            
-            // Reset current history
+            // Clear local history
             currentHistory = [];
+            await saveToLocalStorage([]);
+            
+            // Refresh dashboard
             updateDashboard();
             showNotification("All history cleared successfully", "warning");
         } catch (error) {
@@ -293,6 +369,53 @@ async function clearAllHistoryData() {
             showNotification("Error clearing history", "error");
         }
     }
+}
+
+// Force manual sync with Firebase
+async function forceSync() {
+    showNotification("Syncing with cloud...", "info");
+    await syncLocalToFirebase(currentHistory);
+    await loadHistoryData();
+    showNotification("Sync completed!", "success");
+}
+
+// Export data to JSON
+function exportToJSON() {
+    const dataStr = JSON.stringify(currentHistory, null, 2);
+    const dataBlob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(dataBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `phishguard_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showNotification("Data exported successfully", "success");
+}
+
+// Import data from JSON
+async function importFromJSON(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                if (Array.isArray(importedData)) {
+                    currentHistory = [...importedData, ...currentHistory];
+                    await saveToLocalStorage(currentHistory);
+                    await syncLocalToFirebase(currentHistory);
+                    updateDashboard();
+                    showNotification(`Imported ${importedData.length} records`, "success");
+                    resolve();
+                } else {
+                    reject(new Error("Invalid data format"));
+                }
+            } catch (error) {
+                reject(error);
+            }
+        };
+        reader.onerror = reject;
+        reader.readAsText(file);
+    });
 }
 
 function showLoadingState() {
@@ -338,7 +461,7 @@ function updateStats() {
 }
 
 // ============================================================
-// CHARTS
+// CHARTS (Preserved from original)
 // ============================================================
 function updateCharts() {
     const safe     = currentHistory.filter(i => i.prediction === "Safe").length;
@@ -512,7 +635,7 @@ function getLast7Days() {
 }
 
 // ============================================================
-// KEYWORDS - Fixed: Proper keyword extraction from email content
+// KEYWORDS - Keyword extraction from email content
 // ============================================================
 function updateKeywordList() {
     const container = document.getElementById('keywordList');
@@ -527,16 +650,13 @@ function updateKeywordList() {
 
     const keywordMap = new Map();
     
-    // Process all phishing emails
     const phishingEmails = currentHistory.filter(i => i.prediction === "Phishing");
     
     phishingEmails.forEach(item => {
-        // Get email content or reasons
         const emailContent = (item.email || "").toLowerCase();
         const reasons = (item.reasons || []).join(' ').toLowerCase();
         const fullText = emailContent + ' ' + reasons;
         
-        // Count keyword occurrences
         phishingKeywords.forEach(keyword => {
             if (fullText.includes(keyword)) {
                 keywordMap.set(keyword, (keywordMap.get(keyword) || 0) + 1);
@@ -560,7 +680,7 @@ function updateKeywordList() {
 }
 
 // ============================================================
-// DOMAINS - Fixed: Proper domain extraction from multiple sources
+// DOMAINS - Domain extraction from multiple sources
 // ============================================================
 function updateDomainList() {
     const container = document.getElementById('domainList');
@@ -571,35 +691,29 @@ function updateDomainList() {
     currentHistory.forEach(item => {
         let domain = null;
         
-        // Priority 1: Use senderDomain if available
         if (item.senderDomain && item.senderDomain.trim() !== '') {
             domain = item.senderDomain;
         }
-        // Priority 2: Extract from URL
         else if (item.url && item.url.trim() !== '') {
             try {
                 const urlObj = new URL(item.url);
                 domain = urlObj.hostname;
             } catch(e) {
-                // If URL parsing fails, try to extract domain pattern
                 const match = item.url.match(/https?:\/\/([^\/]+)/);
                 if (match) domain = match[1];
             }
         }
-        // Priority 3: Extract from email content (fallback)
         else if (item.email) {
             const fromMatch = item.email.match(/from:\s*[<\[]?([^<\[>\s@]+@([^>\]\s]+))/i);
             if (fromMatch && fromMatch[2]) domain = fromMatch[2];
         }
         
         if (domain && domain !== '') {
-            // Clean up domain (remove www. prefix)
             domain = domain.replace(/^www\./, '');
             domainMap.set(domain, (domainMap.get(domain) || 0) + 1);
         }
     });
 
-    // If still no domains found, use demo domains from phishing emails
     if (domainMap.size === 0) {
         const phishingItems = currentHistory.filter(i => i.prediction === "Phishing");
         phishingItems.forEach(item => {
@@ -636,7 +750,14 @@ function escapeHtml(text) {
 
 function showNotification(message, type) {
     const notification = document.createElement('div');
-    const bgColor = type === 'error' ? '#ff1744' : type === 'warning' ? '#ff9100' : '#4caf50';
+    const colors = {
+        success: '#4caf50',
+        error: '#ff1744',
+        warning: '#ff9100',
+        info: '#667eea'
+    };
+    const bgColor = colors[type] || colors.info;
+    
     notification.style.cssText = `
         position: fixed;
         bottom: 20px;
@@ -649,6 +770,7 @@ function showNotification(message, type) {
         animation: slideUp 0.3s ease;
         box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 14px;
     `;
     notification.innerHTML = message;
     document.body.appendChild(notification);
@@ -675,7 +797,19 @@ if (!document.querySelector('#notification-style')) {
 }
 
 // Auto-refresh every 30 seconds
-setInterval(loadHistoryData, 30000);
+setInterval(() => {
+    if (navigator.onLine) {
+        loadHistoryData();
+    }
+}, 30000);
 
 // Export functions for use in other files
-export { saveScanResult, deleteHistoryEntry, clearAllHistoryData, loadHistoryData };
+export { 
+    saveScanResult, 
+    deleteHistoryEntry, 
+    clearAllHistoryData, 
+    loadHistoryData,
+    forceSync,
+    exportToJSON,
+    importFromJSON
+};

@@ -239,9 +239,6 @@ body.dark-mode #tips p {
     background: rgba(255, 255, 255, 0.05);
 }
 
-#reasons p:hover, #tips p:hover {
-    transform: translateX(4px);
-}
 
 /* Buttons Section - Horizontal */
 .buttons {
