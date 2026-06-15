@@ -1,53 +1,607 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Settings - PhishGuard AI</title>
-    <link rel="stylesheet" href="popup.css">
+    <link rel="stylesheet" href="dashboard.css">
+    <style>
+        /* Additional styles for new settings components (sliders, toggle cards, etc.) 
+           ensures compatibility with existing dashboard.css and dark mode */
+        .settings-group {
+            margin-bottom: 1.8rem;
+            border-bottom: 1px solid var(--border-color, #e9ecef);
+            padding-bottom: 1rem;
+        }
+        .settings-group:last-child {
+            border-bottom: none;
+        }
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 1.2rem;
+            gap: 0.75rem;
+        }
+        .setting-label {
+            font-weight: 500;
+            flex: 1;
+            min-width: 160px;
+            color: var(--text-primary, #212529);
+        }
+        .setting-control {
+            flex: 2;
+            min-width: 200px;
+        }
+        .setting-desc {
+            font-size: 0.75rem;
+            color: var(--text-secondary, #6c757d);
+            margin-top: 0.25rem;
+            width: 100%;
+        }
+        .slider-value {
+            display: inline-block;
+            margin-left: 12px;
+            font-weight: 600;
+            background: var(--bg-accent, #f1f3f5);
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            background: var(--range-bg, #dee2e6);
+            height: 4px;
+            border-radius: 5px;
+        }
+        .domain-list {
+            background: var(--input-bg, #f8f9fa);
+            border-radius: 12px;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+        }
+        .domain-tag {
+            background: var(--tag-bg, #e9ecef);
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin: 4px 6px 4px 0;
+        }
+        .domain-input-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .domain-input-group input {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color, #ced4da);
+            background: var(--input-bg, white);
+            color: var(--text-primary, #212529);
+        }
+        button.small-btn {
+            background: var(--btn-secondary-bg, #e2e6ea);
+            border: none;
+            padding: 6px 14px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: 0.2s;
+        }
+        button.small-btn:hover {
+            background: var(--btn-secondary-hover, #d4d8dd);
+        }
+        .radio-group {
+            display: flex;
+            gap: 1.2rem;
+            flex-wrap: wrap;
+        }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: normal;
+            cursor: pointer;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider-round {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 34px;
+        }
+        .slider-round:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider-round {
+            background-color: #0d6efd;
+        }
+        input:checked + .slider-round:before {
+            transform: translateX(20px);
+        }
+        .badge-preview {
+            display: inline-flex;
+            align-items: center;
+            background: #dc3545;
+            color: white;
+            border-radius: 30px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+        hr {
+            margin: 1rem 0;
+            border-color: var(--border-color, #e9ecef);
+        }
+        .danger-zone {
+            border-left: 3px solid #dc3545;
+            padding-left: 1rem;
+            margin-top: 1rem;
+        }
+        body.dark-mode .domain-tag {
+            background: #2c3035;
+            color: #e9ecef;
+        }
+        body.dark-mode .domain-input-group input {
+            background: #2b2f33;
+            border-color: #495057;
+            color: #f8f9fa;
+        }
+    </style>
 </head>
 <body>
+    <!-- Menu Toggle Button (visible on mobile) -->
+    <button class="menu-toggle" id="menuToggle">&#9776;</button>
 
-<div class="container">
-    <div class="top-section">
-        <h1> Settings</h1>
-        <p>Customize your protection</p>
+    <!-- Sidebar Navigation (same as dashboard/history) -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>PhishGuard AI</h2>
+            <p>Email Security Protection</p>
+        </div>
+        <div class="sidebar-menu">
+            <a href="dashboard.html" class="menu-item">
+                <span class="menu-icon"></span> Dashboard
+            </a>
+            <a href="history.html" class="menu-item">
+                <span class="menu-icon"></span> History
+            </a>
+            <a href="settings.html" class="menu-item active">
+                <span class="menu-icon"></span> Settings
+            </a>
+        </div>
+        <div class="sidebar-footer">
+            <div class="footer-text">PhishGuard AI v2.0</div>
+        </div>
     </div>
-    
-    <div class="card">
-        <h3> Detection Settings</h3>
-        <label>
-            <input type="checkbox" id="autoScanToggle">
-            Auto-scan emails in Gmail
-        </label>
-        <br><br>
-        <label>
-            Detection Sensitivity:
-            <select id="sensitivity">
-                <option value="low">Low (Fewer alerts)</option>
-                <option value="medium">Medium (Balanced)</option>
-                <option value="high">High (More alerts)</option>
-            </select>
-        </label>
-    </div>
-    
-    <div class="card">
-        <h3> Appearance</h3>
-        <label>
-            <input type="checkbox" id="themeToggle">
-            Dark Mode
-        </label>
-        <br><br>
-        <label>
-            <input type="checkbox" id="showNotifications">
-            Show Desktop Notifications
-        </label>
-    </div>
-    
-    <div class="buttons">
-        <button id="saveSettings">Save Settings</button>
-        <button id="resetSettings">Reset to Default</button>
-    </div>
-</div>
 
-<script src="settings.js"></script>
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container">
+            <div class="top-section">
+                <h1>Settings</h1>
+                <p>Advanced configuration, privacy & security</p>
+            </div>
+
+            <div class="card">
+                <h3> Security & Scanning</h3>
+                
+                <!-- Blocked Domains / Whitelist – Manual add domains to always block or always trust -->
+                <div class="settings-group">
+                    <div class="setting-row">
+                        <div class="setting-label" Blocked Domains (Always Block)</div>
+                        <div class="setting-control">
+                            <div id="blockedDomainsList" class="domain-list">Loading...</div>
+                            <div class="domain-input-group">
+                                <input type="text" id="newBlockedDomain" placeholder="e.g., malicious-site.com">
+                                <button class="small-btn" id="addBlockedDomainBtn">+ Block</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-label"> Trusted Domains (Always Allow)</div>
+                        <div class="setting-control">
+                            <div id="trustedDomainsList" class="domain-list">Loading...</div>
+                            <div class="domain-input-group">
+                                <input type="text" id="newTrustedDomain" placeholder="e.g., mybank.com">
+                                <button class="small-btn" id="addTrustedDomainBtn">+ Trust</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scan Attachments toggle -->
+                <div class="setting-row">
+                    <div class="setting-label"> Scan Attachments (.pdf, .docx, .zip, etc.)</div>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="scanAttachmentsToggle">
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Scan Link Shorteners toggle -->
+                <div class="setting-row">
+                    <div class="setting-label"> Expand Short URLs (bit.ly, tinyurl) before analysis</div>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="expandShortenersToggle">
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Report False Positives / Negatives -->
+                <div class="setting-row">
+                    <div class="setting-label"> Report misclassified email</div>
+                    <div class="setting-control">
+                        <button id="reportFalsePositiveBtn" class="small-btn" style="background:#0d6efd; color:white;"> Submit False Positive/Negative</button>
+                    </div>
+                    <div class="setting-desc">Help us improve AI model by reporting incorrect classifications</div>
+                </div>
+
+                <!-- Minimum Confidence Threshold slider -->
+                <div class="setting-row">
+                    <div class="setting-label"> Minimum Confidence Threshold</div>
+                    <div class="setting-control">
+                        <input type="range" id="confidenceSlider" min="50" max="100" step="1" value="75">
+                        <span id="confidenceValue" class="slider-value">75%</span>
+                    </div>
+                    <div class="setting-desc">Only classify as phishing above this confidence level</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3> Notifications & Alerts</h3>
+                <div class="setting-row">
+                    <div class="setting-label">Notification Frequency</div>
+                    <div class="setting-control radio-group">
+                        <label><input type="radio" name="notifFreq" value="every"> Every detection</label>
+                        <label><input type="radio" name="notifFreq" value="highrisk"> Only high-risk</label>
+                        <label><input type="radio" name="notifFreq" value="digest"> Daily digest</label>
+                        <label><input type="radio" name="notifFreq" value="none"> None</label>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"> Sound Alert on Phishing Detection</div>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="soundAlertToggle">
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"> Browser Badge Count (show detections today)</div>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="badgeCountToggle">
+                            <span class="slider-round"></span>
+                        </label>
+                        <span class="badge-preview" id="badgePreview"> 0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3> Data & Privacy</h3>
+                <div class="setting-row">
+                    <div class="setting-label"> Clear All Scan History</div>
+                    <div class="setting-control">
+                        <button id="clearHistoryBtn" class="small-btn" style="background:#dc3545; color:white;">Delete History</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">⏱ Auto-delete history after</div>
+                    <div class="setting-control radio-group">
+                        <label><input type="radio" name="autoDelete" value="7"> 7 days</label>
+                        <label><input type="radio" name="autoDelete" value="30"> 30 days</label>
+                        <label><input type="radio" name="autoDelete" value="90"> 90 days</label>
+                        <label><input type="radio" name="autoDelete" value="never"> Never</label>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"> Export / Import Settings (JSON)</div>
+                    <div class="setting-control">
+                        <button id="exportSettingsBtn" class="small-btn"> Export</button>
+                        <button id="importSettingsBtn" class="small-btn"> Import</button>
+                        <input type="file" id="importFileInput" accept=".json" style="display:none;">
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"> Anonymous Usage Stats (Help improve detection)</div>
+                    <div class="setting-control">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="dataCollectionToggle">
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3> Appearance</h3>
+                <div class="setting-row">
+                    <div class="setting-label">Theme</div>
+                    <div class="setting-control radio-group">
+                        <label><input type="radio" name="theme" value="light"> Light</label>
+                        <label><input type="radio" name="theme" value="dark"> Dark</label>
+                        <label><input type="radio" name="theme" value="system"> System default</label>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"> Font Size</div>
+                    <div class="setting-control radio-group">
+                        <label><input type="radio" name="fontSize" value="small"> Small</label>
+                        <label><input type="radio" name="fontSize" value="medium"> Medium</label>
+                        <label><input type="radio" name="fontSize" value="large"> Large</label>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"> Card Layout on Dashboard</div>
+                    <div class="setting-control radio-group">
+                        <label><input type="radio" name="cardLayout" value="compact"> Compact</label>
+                        <label><input type="radio" name="cardLayout" value="spacious"> Spacious</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="buttons" style="margin-top: 1rem; display: flex; gap: 1rem;">
+                <button id="saveSettings" style="background:#0d6efd; color:white; padding: 10px 24px;"> Save All Settings</button>
+                <button id="resetSettings" style="background:#6c757d;">↺ Reset to Default</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // SIDEBAR INIT (compatible with dashboard)
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            initSidebar();
+            loadAllSettings();
+            attachEventListeners();
+        });
+
+        function initSidebar() {
+            const menuToggle = document.getElementById('menuToggle');
+            const sidebar    = document.getElementById('sidebar');
+            let hoverTimeout;
+
+            function openSidebar() { clearTimeout(hoverTimeout); sidebar.classList.add('open'); }
+            function closeSidebarDelayed() { hoverTimeout = setTimeout(() => { if (!sidebar.matches(':hover') && !menuToggle.matches(':hover')) sidebar.classList.remove('open'); }, 200); }
+            if (menuToggle && sidebar) {
+                menuToggle.addEventListener('mouseenter', openSidebar);
+                menuToggle.addEventListener('mouseleave', closeSidebarDelayed);
+                sidebar.addEventListener('mouseenter', () => clearTimeout(hoverTimeout));
+                sidebar.addEventListener('mouseleave', closeSidebarDelayed);
+                sidebar.querySelectorAll('.menu-item').forEach(item => { item.addEventListener('click', () => sidebar.classList.remove('open')); });
+            }
+        }
+
+        // default settings schema
+        const DEFAULTS = {
+            blockedDomains: ["example-spam.com"],
+            trustedDomains: ["google.com", "microsoft.com"],
+            scanAttachments: true,
+            expandShorteners: true,
+            minConfidence: 75,
+            notifFrequency: "highrisk",
+            soundAlert: false,
+            badgeCount: true,
+            autoDeleteDays: "30",
+            dataCollection: true,
+            theme: "system",
+            fontSize: "medium",
+            cardLayout: "compact"
+        };
+
+        // load and populate all settings from chrome.storage
+        function loadAllSettings() {
+            chrome.storage.local.get([
+                "blockedDomains", "trustedDomains", "scanAttachments", "expandShorteners",
+                "minConfidence", "notifFrequency", "soundAlert", "badgeCount", "autoDeleteDays",
+                "dataCollection", "theme", "fontSize", "cardLayout"
+            ], (res) => {
+                // domains
+                let blocked = res.blockedDomains || DEFAULTS.blockedDomains;
+                let trusted = res.trustedDomains || DEFAULTS.trustedDomains;
+                renderDomainLists(blocked, trusted);
+                document.getElementById('scanAttachmentsToggle').checked = (res.scanAttachments !== undefined) ? res.scanAttachments : DEFAULTS.scanAttachments;
+                document.getElementById('expandShortenersToggle').checked = (res.expandShorteners !== undefined) ? res.expandShorteners : DEFAULTS.expandShorteners;
+                let conf = (res.minConfidence !== undefined) ? res.minConfidence : DEFAULTS.minConfidence;
+                document.getElementById('confidenceSlider').value = conf;
+                document.getElementById('confidenceValue').innerText = conf + "%";
+                // notification radio
+                let notifFreq = res.notifFrequency || DEFAULTS.notifFrequency;
+                document.querySelectorAll('input[name="notifFreq"]').forEach(radio => { if(radio.value === notifFreq) radio.checked = true; });
+                document.getElementById('soundAlertToggle').checked = (res.soundAlert !== undefined) ? res.soundAlert : DEFAULTS.soundAlert;
+                document.getElementById('badgeCountToggle').checked = (res.badgeCount !== undefined) ? res.badgeCount : DEFAULTS.badgeCount;
+                updateBadgePreview();
+                // auto-delete
+                let delDays = res.autoDeleteDays || DEFAULTS.autoDeleteDays;
+                document.querySelectorAll('input[name="autoDelete"]').forEach(radio => { if(radio.value === delDays) radio.checked = true; });
+                document.getElementById('dataCollectionToggle').checked = (res.dataCollection !== undefined) ? res.dataCollection : DEFAULTS.dataCollection;
+                // appearance
+                let themeVal = res.theme || DEFAULTS.theme;
+                document.querySelectorAll('input[name="theme"]').forEach(radio => { if(radio.value === themeVal) radio.checked = true; });
+                let fontSizeVal = res.fontSize || DEFAULTS.fontSize;
+                document.querySelectorAll('input[name="fontSize"]').forEach(radio => { if(radio.value === fontSizeVal) radio.checked = true; });
+                let layoutVal = res.cardLayout || DEFAULTS.cardLayout;
+                document.querySelectorAll('input[name="cardLayout"]').forEach(radio => { if(radio.value === layoutVal) radio.checked = true; });
+                applyThemeFromString(themeVal);
+                applyFontSize(fontSizeVal);
+            });
+        }
+
+        function renderDomainLists(blocked, trusted) {
+            const blockedDiv = document.getElementById('blockedDomainsList');
+            const trustedDiv = document.getElementById('trustedDomainsList');
+            if(blockedDiv) blockedDiv.innerHTML = (blocked.length ? blocked.map(d => `<span class="domain-tag">${escapeHtml(d)} <button class="remove-domain" data-type="blocked" data-domain="${escapeHtml(d)}" style="background:none; border:none; cursor:pointer;">❌</button></span>`).join('') : '<em>No blocked domains</em>');
+            if(trustedDiv) trustedDiv.innerHTML = (trusted.length ? trusted.map(d => `<span class="domain-tag">${escapeHtml(d)} <button class="remove-domain" data-type="trusted" data-domain="${escapeHtml(d)}" style="background:none; border:none; cursor:pointer;">❌</button></span>`).join('') : '<em>No trusted domains</em>');
+            document.querySelectorAll('.remove-domain').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    let type = btn.getAttribute('data-type');
+                    let domain = btn.getAttribute('data-domain');
+                    removeDomain(type, domain);
+                });
+            });
+        }
+
+        function escapeHtml(str) { return str.replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+
+        async function removeDomain(type, domain) {
+            let key = type === 'blocked' ? 'blockedDomains' : 'trustedDomains';
+            let current = await new Promise(resolve => chrome.storage.local.get([key], (res) => resolve(res[key] || (type==='blocked'?DEFAULTS.blockedDomains:DEFAULTS.trustedDomains))));
+            let updated = current.filter(d => d !== domain);
+            await chrome.storage.local.set({[key]: updated});
+            loadAllSettings(); // refresh UI
+        }
+
+        async function addDomain(type, domain) {
+            if(!domain.trim()) return;
+            let key = type === 'blocked' ? 'blockedDomains' : 'trustedDomains';
+            let current = await new Promise(resolve => chrome.storage.local.get([key], (res) => resolve(res[key] || (type==='blocked'?DEFAULTS.blockedDomains:DEFAULTS.trustedDomains))));
+            if(!current.includes(domain.trim())) {
+                current.push(domain.trim());
+                await chrome.storage.local.set({[key]: current});
+                loadAllSettings();
+            } else { alert("Domain already in list"); }
+        }
+
+        function updateBadgePreview() { const isOn = document.getElementById('badgeCountToggle')?.checked; if(isOn) document.getElementById('badgePreview').style.opacity='1'; else document.getElementById('badgePreview').style.opacity='0.5'; }
+
+        function applyThemeFromString(theme) {
+            if(theme === 'dark') document.body.classList.add('dark-mode');
+            else if(theme === 'light') document.body.classList.remove('dark-mode');
+            else if(theme === 'system') { const darkModeMedia = window.matchMedia('(prefers-color-scheme: dark)'); if(darkModeMedia.matches) document.body.classList.add('dark-mode'); else document.body.classList.remove('dark-mode'); }
+        }
+
+        function applyFontSize(size) { document.documentElement.style.fontSize = size === 'small' ? '13px' : size === 'large' ? '17px' : '15px'; }
+
+        function attachEventListeners() {
+            document.getElementById('confidenceSlider')?.addEventListener('input', (e) => { document.getElementById('confidenceValue').innerText = e.target.value + "%"; });
+            document.getElementById('badgeCountToggle')?.addEventListener('change', updateBadgePreview);
+            document.getElementById('addBlockedDomainBtn')?.addEventListener('click', () => { let inp = document.getElementById('newBlockedDomain'); addDomain('blocked', inp.value); inp.value = ''; });
+            document.getElementById('addTrustedDomainBtn')?.addEventListener('click', () => { let inp = document.getElementById('newTrustedDomain'); addDomain('trusted', inp.value); inp.value = ''; });
+            document.getElementById('clearHistoryBtn')?.addEventListener('click', () => { if(confirm('Delete all scan history permanently?')) { chrome.storage.local.set({scanHistory: []}, ()=>{ alert('History cleared'); }); } });
+            document.getElementById('reportFalsePositiveBtn')?.addEventListener('click', () => { alert('Feature: Submit misclassified email. (Future integration with backend) - You can email reports@phishguard.ai'); });
+            document.getElementById('exportSettingsBtn')?.addEventListener('click', exportSettings);
+            document.getElementById('importSettingsBtn')?.addEventListener('click', () => { document.getElementById('importFileInput').click(); });
+            document.getElementById('importFileInput')?.addEventListener('change', importSettings);
+            document.getElementById('saveSettings')?.addEventListener('click', saveAllSettings);
+            document.getElementById('resetSettings')?.addEventListener('click', resetAllSettings);
+        }
+
+        async function saveAllSettings() {
+            const blockedDomains = await getCurrentDomainList('blockedDomains');
+            const trustedDomains = await getCurrentDomainList('trustedDomains');
+            const notifFreq = document.querySelector('input[name="notifFreq"]:checked')?.value || "highrisk";
+            const autoDelete = document.querySelector('input[name="autoDelete"]:checked')?.value || "30";
+            const theme = document.querySelector('input[name="theme"]:checked')?.value || "system";
+            const fontSize = document.querySelector('input[name="fontSize"]:checked')?.value || "medium";
+            const cardLayout = document.querySelector('input[name="cardLayout"]:checked')?.value || "compact";
+            const settings = {
+                blockedDomains, trustedDomains,
+                scanAttachments: document.getElementById('scanAttachmentsToggle').checked,
+                expandShorteners: document.getElementById('expandShortenersToggle').checked,
+                minConfidence: parseInt(document.getElementById('confidenceSlider').value),
+                notifFrequency: notifFreq,
+                soundAlert: document.getElementById('soundAlertToggle').checked,
+                badgeCount: document.getElementById('badgeCountToggle').checked,
+                autoDeleteDays: autoDelete,
+                dataCollection: document.getElementById('dataCollectionToggle').checked,
+                theme: theme,
+                fontSize: fontSize,
+                cardLayout: cardLayout
+            };
+            chrome.storage.local.set(settings, () => {
+                alert('All settings saved!');
+                applyThemeFromString(theme);
+                applyFontSize(fontSize);
+            });
+        }
+
+        async function getCurrentDomainList(key) {
+            return new Promise(resolve => chrome.storage.local.get([key], (res) => resolve(res[key] || (key==='blockedDomains'?DEFAULTS.blockedDomains:DEFAULTS.trustedDomains))));
+        }
+
+        async function resetAllSettings() {
+            await chrome.storage.local.set({
+                blockedDomains: DEFAULTS.blockedDomains,
+                trustedDomains: DEFAULTS.trustedDomains,
+                scanAttachments: DEFAULTS.scanAttachments,
+                expandShorteners: DEFAULTS.expandShorteners,
+                minConfidence: DEFAULTS.minConfidence,
+                notifFrequency: DEFAULTS.notifFrequency,
+                soundAlert: DEFAULTS.soundAlert,
+                badgeCount: DEFAULTS.badgeCount,
+                autoDeleteDays: DEFAULTS.autoDeleteDays,
+                dataCollection: DEFAULTS.dataCollection,
+                theme: DEFAULTS.theme,
+                fontSize: DEFAULTS.fontSize,
+                cardLayout: DEFAULTS.cardLayout
+            });
+            alert('Reset to factory defaults');
+            loadAllSettings();
+        }
+
+        function exportSettings() {
+            chrome.storage.local.get(null, (items) => {
+                const exportObj = { ...items };
+                const dataStr = JSON.stringify(exportObj, null, 2);
+                const blob = new Blob([dataStr], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'phishguard_settings.json'; a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        function importSettings(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    chrome.storage.local.set(imported, () => { alert('Settings imported! Reloading...'); loadAllSettings(); });
+                } catch(err) { alert('Invalid JSON file'); }
+            };
+            reader.readAsText(file);
+            document.getElementById('importFileInput').value = '';
+        }
+    </script>
 </body>
 </html>
+```

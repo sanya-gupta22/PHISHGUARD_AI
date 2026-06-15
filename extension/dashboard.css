@@ -1,3 +1,4 @@
+/* ===== Sidebar & Navigation Styles (from history.css) ===== */
 * {
     margin: 0;
     padding: 0;
@@ -14,7 +15,7 @@ body {
     overflow-x: hidden;
 }
 
-/* ===== MENU TOGGLE BUTTON ===== */
+/* Menu Toggle Button (hidden on desktop, shown on mobile) */
 .menu-toggle {
     position: fixed;
     top: 20px;
@@ -28,7 +29,7 @@ body {
     border-radius: 14px;
     cursor: pointer;
     font-size: 26px;
-    display: flex;
+    display: none; /* hidden on desktop */
     align-items: center;
     justify-content: center;
     box-shadow: 0 4px 15px rgba(0,0,0,0.25);
@@ -37,32 +38,24 @@ body {
 
 .menu-toggle:hover {
     transform: scale(1.05);
-    background: linear-gradient(135deg, #5a67d8, #6b46a0);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
 }
 
-/* ===== SIDEBAR STYLES - OVERLAY MODE (NO CONTENT SHIFT) ===== */
+/* Sidebar – fixed on left, does not overlay */
 .sidebar {
     position: fixed;
-    left: -280px;
+    left: 0;
     top: 0;
     bottom: 0;
-    width: 280px;
+    width: 260px;
     background: rgba(26, 26, 46, 0.98);
     backdrop-filter: blur(15px);
     color: white;
     z-index: 1000;
     box-shadow: 2px 0 30px rgba(0,0,0,0.3);
-    transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
-}
-
-.sidebar.open {
-    left: 0;
-}
-
-body.dark-mode .sidebar {
-    background: rgba(26, 26, 46, 0.98);
+    transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-header {
@@ -117,6 +110,7 @@ body.dark-mode .sidebar {
 
 .menu-icon {
     font-size: 18px;
+    font-weight: 500;
 }
 
 .sidebar-footer {
@@ -131,21 +125,22 @@ body.dark-mode .sidebar {
     opacity: 0.6;
 }
 
-/* ===== MAIN CONTENT - NO SHIFT, STAYS FULL WIDTH ===== */
+/* Main Content – shifted right because sidebar is fixed */
 .main-content {
+    margin-left: 260px;
     min-height: 100vh;
-    padding: 80px 24px 24px 24px;
-    width: 100%;
+    padding: 30px;
+    transition: margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Container - FULL WIDTH (removed max-width constraint) */
+/* ===== Original dashboard.css styles (unchanged) ===== */
 .container {
-    width: 100%;
-    margin: 0;
+    max-width: 1400px;
+    margin: 0 auto;
     background: rgba(255, 255, 255, 0.95);
-    border-radius: 28px;
+    border-radius: 20px;
     padding: 30px;
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(10px);
     box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.2);
     transition: all 0.3s ease;
 }
@@ -325,22 +320,44 @@ body.dark-mode .keyword-count, body.dark-mode .domain-count {
     color: #667eea;
 }
 
-/* Responsive Design */
-@media (max-width: 968px) {
-    .chart-container {
-        grid-template-columns: 1fr;
+/* Dark mode overrides for sidebar */
+body.dark-mode .sidebar {
+    background: rgba(26, 26, 46, 0.98);
+}
+
+body.dark-mode .stat-card {
+    background: linear-gradient(135deg, #4a47a3, #2c3e50);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .menu-toggle {
+        display: flex;
     }
-    
-    .dashboard-stats {
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+
+    .sidebar {
+        left: -280px;
     }
-    
+
+    .sidebar.open {
+        left: 0;
+    }
+
+    .main-content {
+        margin-left: 0;
+        padding: 15px;
+    }
+
     .container {
         padding: 20px;
     }
-    
-    .main-content {
-        padding: 70px 16px 16px 16px;
+
+    .dashboard-stats {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+
+    .chart-container {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -348,7 +365,7 @@ body.dark-mode .keyword-count, body.dark-mode .domain-count {
     .dashboard-stats {
         grid-template-columns: 1fr;
     }
-    
+
     .menu-toggle {
         top: 12px;
         left: 12px;
@@ -356,11 +373,11 @@ body.dark-mode .keyword-count, body.dark-mode .domain-count {
         height: 42px;
         font-size: 22px;
     }
-    
+
     .stat-number {
         font-size: 28px;
     }
-    
+
     .card h3 {
         font-size: 16px;
     }

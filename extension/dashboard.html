@@ -2,155 +2,103 @@
 <html>
 <head>
     <title>Dashboard - PhishGuard AI</title>
-    <link rel="stylesheet" href="popup.css">
     <link rel="stylesheet" href="dashboard.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="node_modules/chart.js/dist/chart.umd.min.js"></script>
 </head>
 <body>
+    <!-- Menu Toggle Button (visible on mobile) -->
+    <button class="menu-toggle" id="menuToggle">&#9776;</button>
 
-<!-- Menu Toggle Button -->
-<button class="menu-toggle" id="menuToggle">&#9776;</button>
-
-<!-- Sidebar -->
-<div class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-        <h2>PhishGuard AI</h2>
-        <p>Email Security Protection</p>
-    </div> 
-    
-    <div class="sidebar-menu">
-        <a href="history.html" class="menu-item">
-            <span class="menu-icon"></span>
-            <span>History</span>
-        </a>
-        <a href="dashboard.html" class="menu-item active">
-            <span class="menu-icon"></span>
-            <span>Dashboard</span>
-        </a>
-        <a href="settings.html" class="menu-item">
-            <span class="menu-icon"></span>
-            <span>Settings</span>
-        </a>
-    </div>
-    
-    <div class="sidebar-footer">
-        <div class="footer-text">
-            PhishGuard AI v2.0
+    <!-- Sidebar Navigation (same as history page) -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>PhishGuard AI</h2>
+            <p>Email Security Protection</p>
+        </div>
+        <div class="sidebar-menu">
+            <a href="dashboard.html" class="menu-item active">
+                <span class="menu-icon"></span> Dashboard
+            </a>
+            <a href="history.html" class="menu-item">
+                <span class="menu-icon"></span> History
+            </a>
+            <a href="settings.html" class="menu-item">
+                <span class="menu-icon"></span> Settings
+            </a>
+        </div>
+        <div class="sidebar-footer">
+            <div class="footer-text">PhishGuard AI v2.0</div>
         </div>
     </div>
-</div>
 
-<!-- Main Content - FULL WIDTH with dynamic shifting -->
-<div class="main-content">
-    <div class="container">
-        <div class="top-section">
-            <h1>PhishGuard Dashboard</h1>
-            <p>Comprehensive Email Security Analytics</p>
-        </div>
-
-
-<!-- Add this near the top of your dashboard.html, after the container div -->
-<div style="position: fixed; bottom: 20px; right: 20px; z-index: 1002;">
-    <button onclick="testSaveToFirebase()" style="background: #ff1744; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin: 5px;">
-            Test Save to Firebase
-    </button>
-    <button onclick="testLoadFromFirebase()" style="background: #00e676; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin: 5px;">
-         Test Load from Firebase
-    </button>
-</div>
-
-        <!-- Stats Cards - Full width grid -->
-        <div class="dashboard-stats">
-            <div class="stat-card">
-                <div>Total Scanned</div>
-                <div class="stat-number" id="totalScanned">0</div>
+    <!-- Main Content (shifted right by sidebar) -->
+    <div class="main-content">
+        <div class="container">
+            <div class="top-section">
+                <h1>PhishGuard Dashboard</h1>
+                <p>Comprehensive Email Security Analytics</p>
             </div>
-            <div class="stat-card">
-                <div>Safe Emails</div>
-                <div class="stat-number" id="safeEmails">0</div>
-            </div>
-            <div class="stat-card">
-                <div>Phishing Emails</div>
-                <div class="stat-number" id="phishingEmails">0</div>
-            </div>
-            <div class="stat-card">
-                <div>Detection Rate</div>
-                <div class="stat-number" id="detectionRate">0%</div>
-            </div>
-        </div>
 
-        <!-- Charts - Full width layout -->
-        <div class="chart-container">
-            <div class="card">
-                <h3>Detection Results</h3>
-                <div class="chart-wrapper">
-                    <canvas id="pieChart"></canvas>
+            <!-- Stats Cards -->
+            <div class="dashboard-stats">
+                <div class="stat-card">
+                    <div>Total Scanned</div>
+                    <div class="stat-number" id="totalScanned">0</div>
+                </div>
+                <div class="stat-card">
+                    <div>Safe Emails</div>
+                    <div class="stat-number" id="safeEmails">0</div>
+                </div>
+                <div class="stat-card">
+                    <div>Phishing Emails</div>
+                    <div class="stat-number" id="phishingEmails">0</div>
+                </div>
+                <div class="stat-card">
+                    <div>Detection Rate</div>
+                    <div class="stat-number" id="detectionRate">0%</div>
                 </div>
             </div>
-            <div class="card">
-                <h3>Risk Levels Distribution</h3>
-                <div class="chart-wrapper">
-                    <canvas id="riskChart"></canvas>
-                </div>
-            </div>
-            <div class="card full-width">
-                <h3>Detection Trends (Last 7 Days)</h3>
-                <div class="chart-wrapper" style="height: 350px;">
-                    <canvas id="trendChart"></canvas>
-                </div>
-            </div>
-        </div>
 
-        <!-- Additional Analytics - Full width -->
-        <div class="chart-container">
-            <div class="card">
-                <h3>Most Common Phishing Keywords</h3>
-                <div id="keywordList" class="keyword-list">
-                    <div class="loading"> Loading keywords...</div>
+            <!-- Charts -->
+            <div class="chart-container">
+                <div class="card">
+                    <h3>Detection Results</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Risk Levels Distribution</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="riskChart"></canvas>
+                    </div>
+                </div>
+                <div class="card full-width">
+                    <h3>Detection Trends (Last 7 Days)</h3>
+                    <div class="chart-wrapper" style="height: 350px;">
+                        <canvas id="trendChart"></canvas>
+                    </div>
                 </div>
             </div>
-            <div class="card">
-                <h3>Top Sender Domains</h3>
-                <div id="domainList" class="domain-list">
-                    <div class="loading"> Loading domains...</div>
+
+            <!-- Additional Analytics -->
+            <div class="chart-container">
+                <div class="card">
+                    <h3>Most Common Phishing Keywords</h3>
+                    <div id="keywordList" class="keyword-list">
+                        <div class="loading">Loading keywords...</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Top Sender Domains</h3>
+                    <div id="domainList" class="domain-list">
+                        <div class="loading">Loading domains...</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
-<script type="module">
-    import { saveHistoryToFirebase, getHistoryFromFirebase, clearAllHistoryFromFirebase } from './firebase.js';
-    
-    window.testSaveToFirebase = async () => {
-        const testData = {
-            prediction: "Test Phishing",
-            confidence: 0.95,
-            risk: "High",
-            email: "This is a test email saved at " + new Date().toLocaleString(),
-            senderDomain: "test-domain.com",
-            url: "https://test-domain.com/verify",
-            reasons: ["Test reason 1", "Test reason 2"],
-            time: new Date().toLocaleString(),
-            timestamp: new Date()
-        };
-        
-        console.log("Saving test data:", testData);
-        const result = await saveHistoryToFirebase(testData);
-        
-        if (result) {
-            alert(` Test data saved successfully! Document ID: ${result}\n\nCheck your Firebase Console to see it.`);
-        } else {
-            alert(" Failed to save to Firebase. Check console for errors.");
-        }
-    };
-    
-    window.testLoadFromFirebase = async () => {
-        const data = await getHistoryFromFirebase();
-        console.log("Loaded data:", data);
-        alert(` Loaded ${data.length} records from Firebase!\n\nCheck console for details.`);
-    };
-</script>
 
-<script src="dashboard.js"></script>
+    <script type="module" src="dashboard.js"></script>
 </body>
 </html>
