@@ -1,41 +1,42 @@
-// history.js - Complete history management with email linking and auto-detection tracking
+// ===== Sidebar Toggle (from app.js) =====
 const menuToggle = document.getElementById('menuToggle');
-    const sidebar = document.getElementById('sidebar');
-    let hoverTimeout;
-    
-    // Open sidebar on hover
+const sidebar = document.getElementById('sidebar');
+let hoverTimeout;
+
+// Open sidebar on hover (desktop) or click (mobile)
+if (menuToggle && sidebar) {
     menuToggle.addEventListener('mouseenter', () => {
         clearTimeout(hoverTimeout);
         sidebar.classList.add('open');
     });
-    
-    // Close sidebar when mouse leaves the sidebar
+
+    menuToggle.addEventListener('mouseleave', () => {
+        hoverTimeout = setTimeout(() => {
+            if (!sidebar.matches(':hover')) {
+                sidebar.classList.remove('open');
+            }
+        }, 300);
+    });
+
+    sidebar.addEventListener('mouseenter', () => {
+        clearTimeout(hoverTimeout);
+    });
+
     sidebar.addEventListener('mouseleave', () => {
         hoverTimeout = setTimeout(() => {
             sidebar.classList.remove('open');
         }, 300);
     });
-    
-    // Also close when mouse leaves the toggle button (with delay)
-    menuToggle.addEventListener('mouseleave', () => {
-        hoverTimeout = setTimeout(() => {
-            sidebar.classList.remove('open');
-        }, 300);
-    });
-    
-    // Keep sidebar open when hovering over it
-    sidebar.addEventListener('mouseenter', () => {
-        clearTimeout(hoverTimeout);
-    });
-    
-    // Close sidebar when clicking on a menu item
+
+    // Close sidebar when clicking a menu item (mobile)
     document.querySelectorAll('.menu-item').forEach(item => {
         item.addEventListener('click', () => {
             sidebar.classList.remove('open');
         });
     });
+}
 
-    
+// ===== Original history.js code (unchanged) =====
 let currentHistory = [];
 let currentFilter = "all";
 
@@ -497,7 +498,7 @@ function exportToCSV() {
         ]);
     });
     
-    const csvContent = csvRows.map(row => row.join(",")).join("\n");
+    const csvContent = csvRows.map(row => row.join(",")).join(" ");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

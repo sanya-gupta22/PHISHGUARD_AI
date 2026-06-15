@@ -1,5 +1,5 @@
 // firebase.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { initializeApp } from "firebase/app";
 import {
     getFirestore,
     collection,
@@ -14,8 +14,8 @@ import {
     updateDoc,
     Timestamp,
     writeBatch
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
+} from "firebase/firestore";
+ 
 // ===================================
 // FIREBASE CONFIG (YOUR ACTUAL CONFIG)
 // ===================================

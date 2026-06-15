@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Attach button listeners
     document.getElementById('scanBtn').addEventListener('click', scanEmail);
+    document.getElementById('historyBtn').addEventListener('click', openHistory);
     document.getElementById('dashboardBtn').addEventListener('click', openDashboard);
     document.getElementById('darkToggle').addEventListener('change', toggleDarkMode);
 
@@ -268,6 +269,11 @@ async function requestCurrentEmailStatus() {
     }
 }
 
+// ===== Open History Page =====
+function openHistory() {
+    chrome.tabs.create({ url: chrome.runtime.getURL("history.html") });
+}
+
 // ===== History Management =====
 async function loadScannedHistory() {
     return new Promise((resolve) => {
@@ -288,7 +294,9 @@ function saveScannedHistory() {
     chrome.storage.local.set({ scannedEmails: historyArray });
 }
 
-function saveToHistory(data) {
+
+// ===== Save to History  =====
+function saveToHistory(data, scanType = 'manual') {
     const entry = {
         emailId: data.emailId || Date.now().toString(),
         sender: data.sender || 'Unknown',
@@ -297,6 +305,7 @@ function saveToHistory(data) {
         riskLevel: data.isPhishing ? 'phishing' : 'safe',
         reasons: data.reasons || [],
         timestamp: new Date().toISOString(),
+        scanType: scanType,  // 'auto' or 'manual'
         synced: false
     };
 
@@ -305,10 +314,11 @@ function saveToHistory(data) {
         history.unshift(entry);
         if (history.length > 200) history.length = 200;
         chrome.storage.local.set({ scanHistory: history }, () => {
-            console.log('Saved to local history');
+            console.log('Saved to local history with scanType:', scanType);
         });
     });
 }
+
 
 // ===== Dark Mode =====
 function toggleDarkMode(e) {

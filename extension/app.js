@@ -1,27 +1,6 @@
-// ===== Firebase Configuration =====
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, limit, Timestamp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+import Chart from '../chart.js/auto';
 
-const firebaseConfig = {
-    apiKey: "AIzaSyAFcj5O7hCawVIWwSvF9uVOx9_uTKAzNfM",
-    authDomain: "phishguard-ai-1b430.firebaseapp.com",
-    projectId: "phishguard-ai-1b430",
-    storageBucket: "phishguard-ai-1b430.appspot.com",
-    messagingSenderId: "197789399403",
-    appId: "1:197789399403:web:cf53930d084218c58db42e"
-};
-
-let firebaseApp, db, useFirebase = true;
-
-try {
-    firebaseApp = initializeApp(firebaseConfig);
-    db = getFirestore(firebaseApp);
-} catch (error) {
-    console.warn('Firebase initialization failed:', error);
-    useFirebase = false;
-}
-
-// ===== Global State =====
+// ===== Global State ===== 
 let currentHistory = [];
 let filteredHistory = [];
 let currentFilter = 'all';
@@ -59,7 +38,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     attachEventListeners();
     
     // Start auto-sync
-    setInterval(syncLocalToFirebase, 30000);
+    if(useFirebase){
+    setInterval(syncLocalToFirebase,30000);
+}
     
     // Show welcome notification
     showNotification('PhishGuard AI is ready!', 'success');
@@ -76,7 +57,8 @@ async function loadSettings() {
             
             document.getElementById('autoScanToggle').checked = result.autoScan !== false;
             document.getElementById('sensitivitySelect').value = result.sensitivity || 'medium';
-            document.getElementById('cloudSyncToggle').checked = result.cloudSync !== false;
+            document.getElementById('cloudSyncToggle').checked = false;
+            document.getElementById('cloudSyncToggle').disabled = true;
             document.getElementById('notifToggle').checked = result.notifications !== false;
             
             useFirebase = result.cloudSync !== false;
@@ -636,53 +618,108 @@ function updateDomainList() {
 function displayHistory() {
     const tbody = document.getElementById('historyBody');
     tbody.innerHTML = '';
-    
+
     // Apply filters
     let displayData = [...currentHistory];
-    
     if (currentFilter !== 'all') {
-        displayData = displayData.filter(item => item.riskLevel === currentFilter);
+        if (currentFilter === 'high') {
+            displayData = displayData.filter(item => item.riskLevel === 'phishing' && item.confidence >= 80);
+        } else if (currentFilter === 'medium') {
+            displayData = displayData.filter(item => item.riskLevel === 'suspicious' || (item.riskLevel === 'phishing' && item.confidence < 80));
+        } else {
+            displayData = displayData.filter(item => item.riskLevel === currentFilter);
+        }
     }
-    
     if (currentSearchTerm) {
         const searchLower = currentSearchTerm.toLowerCase();
-        displayData = displayData.filter(item => 
+        displayData = displayData.filter(item =>
             item.sender.toLowerCase().includes(searchLower) ||
             item.subject.toLowerCase().includes(searchLower) ||
             (item.reasons && item.reasons.some(r => r.toLowerCase().includes(searchLower)))
         );
     }
-    
+
     filteredHistory = displayData;
-    
+
     // Pagination
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const pageItems = displayData.slice(startIndex, endIndex);
-    
+
     if (pageItems.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-message">No scan history found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-message">📭 No scan history found</td></tr>';
         return;
     }
-    
+
     pageItems.forEach(item => {
         const tr = document.createElement('tr');
-        const date = new Date(item.timestamp).toLocaleString();
+        const confidencePercent = item.confidence;
         const riskClass = item.riskLevel;
-        
+        const dangerClass = riskClass === 'phishing' ? 'phishing' : 'safe';
+        const riskBadge = getRiskBadge(riskClass, confidencePercent);
+        const preview = `${escapeHtml(item.sender)}<br><small>${escapeHtml(item.subject)}</small>`;
+        const reasonsHtml = item.reasons && item.reasons.length > 0
+            ? `<div style="margin-top:6px;font-size:11px;color:#ff1744;background:rgba(255,23,68,0.08);padding:4px 8px;border-radius:6px;">
+                 <strong>Reasons:</strong> ${item.reasons.slice(0,2).map(r => escapeHtml(r)).join(', ')}
+               </div>`
+            : '';
+
         tr.innerHTML = `
-            <td>${date}</td>
-            <td>${escapeHtml(item.sender)}</td>
-            <td>${escapeHtml(item.subject)}</td>
-            <td>${item.confidence}%</td>
-            <td><span class="risk-badge ${riskClass}">${item.riskLevel}</span></td>
             <td>
-                <button class="table-action-btn view" onclick="viewDetails('${item.id}')">👁️ View</button>
-                <button class="table-action-btn delete" onclick="deleteHistoryEntry('${item.id}')">🗑️</button>
+                <div class="email-snippet">${preview}${reasonsHtml}</div>
+            </td>
+            <td class="${dangerClass}">${riskClass === 'phishing' ? '⚠️ Phishing' : '✅ Safe'}</td>
+            <td>
+                <div class="confidence-bar" style="width:100px;background:#e0e0e0;border-radius:10px;overflow:hidden;margin-bottom:4px;">
+                    <div class="confidence-fill" style="width:${confidencePercent}%;height:8px;background:${confidencePercent > 70 ? '#ff1744' : confidencePercent > 40 ? '#ff9100' : '#00e676'};"></div>
+                </div>
+                <span style="font-size:12px;">${confidencePercent}%</span>
+            </td>
+            <td>${riskBadge}</td>
+            <td style="font-size:12px;">
+                ${new Date(item.timestamp).toLocaleString()}
+                <div style="font-size:10px;color:#888;margin-top:3px;">${item.scanType === 'auto' ? '🤖 Auto' : '👤 Manual'}</div>
+            </td>
+            <td>
+                <div class="action-buttons-cell" style="display:flex;gap:6px;">
+                    <button class="table-action-btn view" onclick="viewDetails('${item.id}')">👁️</button>
+                    <button class="table-action-btn delete" onclick="deleteHistoryEntry('${item.id}')">🗑️</button>
+                </div>
             </td>
         `;
         tbody.appendChild(tr);
     });
+}
+
+// Helper to generate risk badge
+function getRiskBadge(riskLevel, confidence) {
+    if (riskLevel === 'phishing') {
+        return `<span class="risk-badge high">HIGH RISK</span>`;
+    } else if (riskLevel === 'suspicious' || (riskLevel === 'safe' && confidence > 50)) {
+        return `<span class="risk-badge medium">MEDIUM RISK</span>`;
+    } else {
+        return `<span class="risk-badge low">LOW RISK</span>`;
+    }
+}
+
+// Override updateStats to also update new stats bar
+function updateStats() {
+    const total = currentHistory.length;
+    const phishing = currentHistory.filter(item => item.riskLevel === 'phishing').length;
+    const safe = currentHistory.filter(item => item.riskLevel === 'safe').length;
+    const suspicious = currentHistory.filter(item => item.riskLevel === 'suspicious').length;
+    const highRisk = currentHistory.filter(item => item.riskLevel === 'phishing' && item.confidence >= 80).length;
+
+    document.getElementById('totalScanned').textContent = total;
+    document.getElementById('totalPhishing').textContent = phishing;
+    document.getElementById('totalSafe').textContent = safe;
+    document.getElementById('totalSuspicious').textContent = suspicious;
+
+    // New stats bar IDs
+    document.getElementById('totalScans').textContent = total;
+    document.getElementById('phishingCount').textContent = phishing;
+    document.getElementById('safeCount').textContent = safe;
+    document.getElementById('highRiskCount').textContent = highRisk;
 }
 
 // ===== Update Pagination =====
@@ -935,8 +972,12 @@ function attachEventListeners() {
             e.target.value = '';
         }
     });
-    document.getElementById('syncBtn')?.addEventListener('click', syncLocalToFirebase);
-    
+
+    document.getElementById('syncBtn')
+    ?.addEventListener('click', () => {
+        showNotification('Cloud sync disabled', 'info');
+    });    
+
     // History actions
     document.getElementById('clearHistoryBtn')?.addEventListener('click', clearAllHistory);
     document.getElementById('exportHistoryCSVBtn')?.addEventListener('click', exportToCSV);

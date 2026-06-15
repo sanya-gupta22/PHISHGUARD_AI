@@ -1,5 +1,4 @@
-/* history.css - History page specific styles with hoverable sidebar */
-
+/* ===== Sidebar & Navigation Styles (from app.css) ===== */
 * {
     margin: 0;
     padding: 0;
@@ -13,15 +12,10 @@ body {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     margin: 0;
     padding: 0;
+    overflow-x: hidden;
 }
 
-/* Layout */
-.app-layout {
-    display: flex;
-    min-height: 100vh;
-}
-
-/* Menu Toggle Button */
+/* Menu Toggle */
 .menu-toggle {
     position: fixed;
     top: 20px;
@@ -30,15 +24,15 @@ body {
     background: linear-gradient(135deg, #667eea, #764ba2);
     color: white;
     border: none;
-    width: 45px;
-    height: 45px;
-    border-radius: 12px;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
     cursor: pointer;
-    font-size: 24px;
-    display: flex;
+    font-size: 26px;
+    display: none; /* hidden on desktop, shown on mobile */
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.25);
     transition: all 0.3s ease;
 }
 
@@ -47,43 +41,32 @@ body {
     box-shadow: 0 6px 20px rgba(0,0,0,0.3);
 }
 
-/* Sidebar Styles - Hidden by default */
+/* Sidebar */
 .sidebar {
     position: fixed;
-    left: -280px;
+    left: 0;
     top: 0;
     bottom: 0;
-    width: 280px;
+    width: 260px;
     background: rgba(26, 26, 46, 0.98);
     backdrop-filter: blur(15px);
     color: white;
     z-index: 1000;
     box-shadow: 2px 0 30px rgba(0,0,0,0.3);
-    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
+    transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Sidebar Open State */
-.sidebar.open {
-    left: 0;
-}
-
-/* Dark mode support */
-body.dark-mode .sidebar {
-    background: rgba(26, 26, 46, 0.98);
-}
-
-/* Sidebar Header */
 .sidebar-header {
-    padding: 30px 20px;
+    padding: 32px 24px;
     text-align: center;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     margin-bottom: 20px;
 }
 
 .sidebar-header h2 {
-    font-size: 22px;
+    font-size: 24px;
     background: linear-gradient(135deg, #667eea, #764ba2);
     -webkit-background-clip: text;
     background-clip: text;
@@ -96,23 +79,22 @@ body.dark-mode .sidebar {
     opacity: 0.7;
 }
 
-/* Sidebar Menu */
 .sidebar-menu {
     flex: 1;
-    padding: 0 15px;
+    padding: 0 16px;
 }
 
 .menu-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 15px;
-    margin: 5px 0;
-    border-radius: 12px;
-    cursor: pointer;
+    gap: 14px;
+    padding: 12px 18px;
+    margin: 6px 0;
+    border-radius: 14px;
     transition: all 0.3s ease;
     color: #e0e0e0;
     text-decoration: none;
+    font-weight: 500;
 }
 
 .menu-item:hover {
@@ -127,32 +109,31 @@ body.dark-mode .sidebar {
 }
 
 .menu-icon {
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 500;
 }
 
-/* Sidebar Footer */
 .sidebar-footer {
     padding: 20px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     margin-top: auto;
+    text-align: center;
 }
 
 .footer-text {
     font-size: 11px;
     opacity: 0.6;
-    text-align: center;
 }
 
-/* Main Content */
+/* Main Content – shifted right because sidebar is fixed */
 .main-content {
-    flex: 1;
-    margin-left: 0;
-    padding: 80px 20px 20px 20px;
-    transition: margin-left 0.3s ease;
+    margin-left: 260px;
+    min-height: 100vh;
+    padding: 30px;
+    transition: margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Container */
+/* ===== Original history.css styles (adapted) ===== */
 .container {
     max-width: 1400px;
     margin: 0 auto;
@@ -173,7 +154,6 @@ body.dark-mode .card {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Top Section */
 .top-section {
     text-align: center;
     margin-bottom: 30px;
@@ -199,7 +179,6 @@ body.dark-mode .top-section p {
     color: #aaa;
 }
 
-/* Stats Bar */
 .stats-bar {
     display: flex;
     gap: 20px;
@@ -228,7 +207,6 @@ body.dark-mode .top-section p {
     margin-top: 5px;
 }
 
-/* Action Buttons */
 .action-buttons {
     display: flex;
     gap: 10px;
@@ -260,7 +238,6 @@ body.dark-mode .top-section p {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-/* Filter Buttons */
 .filter-buttons {
     display: flex;
     gap: 10px;
@@ -289,7 +266,6 @@ body.dark-mode .top-section p {
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-/* Table Container */
 .table-container {
     overflow-x: auto;
     border-radius: 12px;
@@ -324,7 +300,6 @@ tr:hover {
     transition: all 0.3s;
 }
 
-/* Email Preview */
 .email-preview {
     max-width: 300px;
 }
@@ -339,7 +314,6 @@ body.dark-mode .email-snippet {
     color: #aaa;
 }
 
-/* Prediction Colors */
 .phishing {
     color: #ff1744;
     font-weight: bold;
@@ -350,7 +324,6 @@ body.dark-mode .email-snippet {
     font-weight: bold;
 }
 
-/* Risk Level Colors */
 .risk-high {
     color: #ff1744;
     font-weight: bold;
@@ -366,7 +339,6 @@ body.dark-mode .email-snippet {
     font-weight: bold;
 }
 
-/* Action Buttons Cell */
 .action-buttons-cell {
     display: flex;
     gap: 8px;
@@ -403,7 +375,6 @@ body.dark-mode .email-snippet {
     transform: scale(1.05);
 }
 
-/* Confidence Bar */
 .confidence-bar {
     width: 100%;
     background: #e0e0e0;
@@ -417,7 +388,6 @@ body.dark-mode .email-snippet {
     transition: width 0.3s;
 }
 
-/* Deleted Badge */
 .deleted-badge {
     background: #ff9100;
     color: white;
@@ -428,7 +398,6 @@ body.dark-mode .email-snippet {
     margin-top: 5px;
 }
 
-/* Risk Badge */
 .risk-badge {
     padding: 4px 10px;
     border-radius: 20px;
@@ -452,7 +421,6 @@ body.dark-mode .email-snippet {
     color: white;
 }
 
-/* No Data Row */
 .no-data {
     text-align: center;
     padding: 40px;
@@ -464,59 +432,125 @@ body.dark-mode .email-snippet {
     opacity: 0.7;
 }
 
-/* Responsive Design */
+/* Loading Animation */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.loading {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Notification (floating) */
+.notif {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    z-index: 10001;
+    animation: slideUp 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Dark mode overrides */
+body.dark-mode .sidebar {
+    background: rgba(26, 26, 46, 0.98);
+}
+
+body.dark-mode .stat-card {
+    background: linear-gradient(135deg, #4a47a3, #2c3e50);
+}
+
+body.dark-mode .filter-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+}
+
+body.dark-mode .filter-btn.active {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+body.dark-mode th {
+    background: rgba(102, 126, 234, 0.5);
+}
+
+body.dark-mode td {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode tr:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Mobile responsiveness */
 @media (max-width: 768px) {
     .menu-toggle {
-        top: 10px;
-        left: 10px;
-        width: 40px;
-        height: 40px;
-        font-size: 20px;
+        display: flex;
     }
-    
+
+    .sidebar {
+        left: -280px;
+    }
+
+    .sidebar.open {
+        left: 0;
+    }
+
     .main-content {
-        padding: 70px 15px 15px 15px;
+        margin-left: 0;
+        padding: 15px;
     }
-    
+
     .container {
         padding: 15px;
     }
-    
-    .top-section h1 {
-        font-size: 22px;
-    }
-    
+
     .stats-bar {
         gap: 10px;
     }
-    
+
     .stat-card {
         padding: 10px 15px;
         min-width: 100px;
     }
-    
+
     .stat-number {
         font-size: 20px;
     }
-    
+
     .filter-btn {
         padding: 6px 12px;
         font-size: 12px;
     }
-    
+
     th, td {
         padding: 10px;
         font-size: 12px;
     }
-    
+
     .email-preview {
         max-width: 200px;
     }
-    
+
     .action-buttons-cell {
         flex-direction: column;
     }
-    
+
     .view-email-btn, .delete-item-btn {
         padding: 4px 8px;
         font-size: 10px;

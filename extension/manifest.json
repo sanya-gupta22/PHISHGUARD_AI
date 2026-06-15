@@ -22,7 +22,7 @@
     "https://*.firebaseio.com/*"
   ],
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "popup1.html",
     "default_icon": {
       "16": "icons/icon16.jpg",
       "48": "icons/icon48.jpg",
@@ -41,13 +41,13 @@
         "https://*.office.com/*"
       ],
       "js": ["content.js"],
-      "css": ["popup.css"],
+      "css": ["popup1.css"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["icons/*", "popup.css"],
+      "resources": ["icons/*", "popup1.css"],
       "matches": ["<all_urls>"]
     }
   ],

@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PhishGuard AI</title>
     <link rel="stylesheet" href="app.css" />
-    <!-- Chart.js CDN -->
-    <script src="node_modules/chart.js/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <!-- Menu Toggle -->
@@ -121,58 +119,66 @@
             <div class="container">
                 <div class="page-header">
                     <h1> Scan History</h1>
-                    <p>Complete record of all email scans</p>
+                    <p>Complete record of all email scans with detailed analysis</p>
+
+                    <!-- Stats Bar -->
+                    <div class="stats-bar" style="display:flex;gap:15px;margin-top:20px;flex-wrap:wrap;justify-content:center;">
+                        <div class="stat-card" style="background:linear-gradient(135deg,#667eea,#764ba2);padding:12px 24px;border-radius:16px;color:white;min-width:120px;text-align:center;">
+                            <div>Total Scans</div>
+                            <div class="stat-number" id="totalScans" style="font-size:28px;font-weight:bold;">0</div>
+                        </div>
+                        <div class="stat-card" style="background:linear-gradient(135deg,#f56565,#ed8936);padding:12px 24px;border-radius:16px;color:white;min-width:120px;text-align:center;">
+                            <div>Phishing</div>
+                            <div class="stat-number" id="phishingCount" style="font-size:28px;font-weight:bold;">0</div>
+                        </div>
+                        <div class="stat-card" style="background:linear-gradient(135deg,#48bb78,#38a169);padding:12px 24px;border-radius:16px;color:white;min-width:120px;text-align:center;">
+                            <div>Safe</div>
+                            <div class="stat-number" id="safeCount" style="font-size:28px;font-weight:bold;">0</div>
+                        </div>
+                        <div class="stat-card" style="background:linear-gradient(135deg,#ed8936,#dd6b20);padding:12px 24px;border-radius:16px;color:white;min-width:120px;text-align:center;">
+                            <div>High Risk</div>
+                            <div class="stat-number" id="highRiskCount" style="font-size:28px;font-weight:bold;">0</div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Filters -->
+                <!-- Filters & Search -->
                 <div class="filter-section">
                     <div class="filter-buttons">
                         <button class="filter-btn active" data-filter="all">All</button>
                         <button class="filter-btn" data-filter="phishing">Phishing</button>
                         <button class="filter-btn" data-filter="safe">Safe</button>
                         <button class="filter-btn" data-filter="suspicious">Suspicious</button>
+                        <button class="filter-btn" data-filter="high">High Risk</button>
+                        <button class="filter-btn" data-filter="medium">Medium Risk</button>
                     </div>
                     <div class="search-section">
-                        <input type="text" id="searchInput" placeholder=" Search emails, sender, subject..." />
-                        <button id="searchBtn" class="search-btn">Search</button>
+                        <input type="text" id="searchInput" placeholder="Search emails, sender, subject..." />
+                        <button id="searchBtn" class="search-btn"></button>
                     </div>
                 </div>
 
-                <!-- Statistics -->
-                <div class="history-stats">
-                    <div class="history-stat">
-                        <span>Total:</span>
-                        <span id="totalCount">0</span>
-                    </div>
-                    <div class="history-stat">
-                        <span>Phishing:</span>
-                        <span id="phishingCount">0</span>
-                    </div>
-                    <div class="history-stat">
-                        <span>Safe:</span>
-                        <span id="safeCount">0</span>
-                    </div>
-                    <div class="history-stat">
-                        <span>Suspicious:</span>
-                        <span id="suspiciousCount">0</span>
-                    </div>
+                <!-- Action Buttons -->
+                <div class="history-actions" style="display:flex;gap:12px;margin-bottom:20px;justify-content:flex-end;">
+                    <button id="exportHistoryCSVBtn" class="action-btn"> Export CSV</button>
+                    <button id="clearHistoryBtn" class="action-btn danger-btn"> Clear All</button>
                 </div>
 
-                <!-- History Table -->
+                <!-- Table -->
                 <div class="table-container">
                     <table id="historyTable">
                         <thead>
                             <tr>
-                                <th>Date/Time</th>
-                                <th>Sender</th>
-                                <th>Subject</th>
+                                <th>Email Preview</th>
+                                <th>Prediction</th>
                                 <th>Confidence</th>
                                 <th>Risk Level</th>
+                                <th>Scan Time</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="historyBody">
-                            <!-- Dynamic rows here -->
+                            <!-- Dynamic rows inserted by JavaScript -->
                         </tbody>
                     </table>
                 </div>
@@ -182,12 +188,6 @@
                     <button id="prevPage" class="page-btn">← Previous</button>
                     <span id="pageInfo">Page 1 of 1</span>
                     <button id="nextPage" class="page-btn">Next →</button>
-                </div>
-
-                <!-- Export buttons -->
-                <div class="history-actions">
-                    <button id="clearHistoryBtn" class="action-btn danger-btn">🗑️ Clear All</button>
-                    <button id="exportHistoryCSVBtn" class="action-btn"> Export CSV</button>
                 </div>
             </div>
         </section>
