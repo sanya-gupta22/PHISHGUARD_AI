@@ -20,7 +20,7 @@ import {
 // FIREBASE CONFIG (YOUR ACTUAL CONFIG)
 // ===================================
 const firebaseConfig = {
-    apiKey: "AIzaSyAFcj5O7hCawVIWwSvF9uVOx9_uTKAzNfM",
+    apiKey: "use your own API",
     authDomain: "phishguard-ai-1b430.firebaseapp.com",
     projectId: "phishguard-ai-1b430",
     storageBucket: "phishguard-ai-1b430.appspot.com",
